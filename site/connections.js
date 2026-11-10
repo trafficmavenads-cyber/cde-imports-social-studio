@@ -8,6 +8,7 @@ const providers=[
 ];
 const $=id=>document.getElementById(id);
 const TIKTOK_CALLBACK='https://cde-imports-social-demo.onrender.com/api/oauth/callback/tiktok';
+const INSTAGRAM_CALLBACK='https://cde-imports-social-demo.onrender.com/api/oauth/callback/instagram';
 const SERVER_KEY='cde-social-api-base-v1',SESSION_KEY='cde-social-admin-session-v1',DEMO_URL='https://cde-imports-social-demo.onrender.com';
 let api='',session=sessionStorage.getItem(SESSION_KEY)||'',accounts=[],health=null,busy=false;
 function show(message,error=false){const m=$('api-message');m.textContent=message;m.className='api-message '+(error?'error':'');}
@@ -41,6 +42,8 @@ function render(){
  const demo=health?.demoMode===true;
  const cfg=$('tiktok-config-status');
  if(cfg)cfg.textContent=demo?'Faltam as credenciais privadas no Render':health?.providerConfigured?.tiktok?'Login TikTok disponível para teste temporário':'Aguardando servidor';
+ const igCfg=$('instagram-config-status');
+ if(igCfg)igCfg.textContent=demo?'Faltam as credenciais privadas no Render':health?.providerConfigured?.instagram?'Login Instagram disponível para teste temporário':'Aguardando credenciais Instagram';
  $('api-login').hidden=demo||Boolean(session);
  $('api-password-wrap').hidden=demo||Boolean(session);
  $('api-logout').hidden=demo||!session;
@@ -89,7 +92,7 @@ async function check(){
  try{
   status('Verificando...');health=await request('/api/health');
   if(!health.ok)throw Error('Servidor não respondeu corretamente.');
-  status(health.demoMode?'Modo demo • gratuito':health.temporaryStorage?'TikTok • teste temporário':'Servidor online',health.demoMode?'amber':'connected');
+  status(health.demoMode?'Modo demo • gratuito':health.temporaryStorage?'Redes sociais • teste temporário':'Servidor online',health.demoMode?'amber':'connected');
   if(health.demoMode){session='';sessionStorage.removeItem(SESSION_KEY);accounts=[];show('✅ Conexão de teste funcionando! Este servidor gratuito não recebe senhas, não autentica redes e não realiza publicações.');}
   else if(session){
    try{const data=await request('/api/accounts');accounts=data.accounts||[];show('Servidor conectado. Contas verificadas.');}
@@ -139,6 +142,7 @@ $('api-save').addEventListener('click',async()=>{
 });
 $('api-test').addEventListener('click',check);
 $('copy-tiktok-callback')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(TIKTOK_CALLBACK);show('URL de retorno copiada. Cole no Login Kit do TikTok Developers.');}catch{show('Copie a URL exibida no guia acima.',true);}});
+$('copy-instagram-callback')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(INSTAGRAM_CALLBACK);show('URL do Instagram copiada. Cole no campo OAuth redirect URI da Meta.');}catch{show('Selecione e copie a URL exibida no guia acima.',true);}});
 $('api-login').addEventListener('click',login);
 $('api-password').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
 $('api-logout').addEventListener('click',logout);
