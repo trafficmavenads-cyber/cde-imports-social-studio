@@ -85,6 +85,7 @@ function render(){
  whatsapp.append(el('small','account-desc','Compartilhamento assistido — não há login oficial de publicação automática em grupos e Status neste painel.'));
  const p=el('p','account-status','Sem integração automática de publicação');
  whatsapp.append(p);grid.append(whatsapp);
+ window.dispatchEvent(new Event('cde:connections-change'));
 }
 async function check(){
  const val=parseServer($('api-url').value);if(!val){status('Servidor não configurado','amber');show('Insira uma URL HTTPS válida do backend, sem caminhos adicionais.',true);return;}
@@ -157,4 +158,11 @@ if(params.has('oauth_network')){
  params.delete('oauth_network');params.delete('oauth_result');
  history.replaceState(null,'',location.pathname+(params.size?'?'+params.toString():'')+location.hash);
 }
+window.CDEAIBackend={
+ status:()=>({configured:Boolean(health?.aiConfigured),loggedIn:Boolean(session),available:Boolean(health?.aiConfigured&&session)}),
+ generate:async input=>{
+  if(!health?.aiConfigured||!session)throw Error('IA online indisponível. Entre no servidor ou use sugestões gratuitas.');
+  return request('/api/ai/captions',{method:'POST',body:JSON.stringify(input)});
+ }
+};
 })();
