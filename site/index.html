@@ -16,6 +16,12 @@ Qualidade, variedade e condições especiais. Confira os detalhes e garanta o se
  <div class="ai-controls"><label for="ai-tone">Tom de voz<select id="ai-tone"><option value="premium">Premium e sofisticado</option><option value="energetico">Envolvente e motivador</option><option value="direto">Direto e comercial</option></select></label><label for="ai-goal">Objetivo<select id="ai-goal"><option value="vender">Gerar interesse e vendas</option><option value="engajar">Gerar conversas</option><option value="apresentar">Apresentar o produto</option></select></label></div>
  <div class="ai-actions"><button type="button" id="ai-local" class="primary">✦ Criar legendas grátis</button><button type="button" id="ai-online" class="secondary" disabled>Gerar com IA online</button><button type="button" id="ai-unblock" class="secondary">Destravar ideias</button></div>
  <p class="ai-support" id="ai-online-note">Sugestões locais gratuitas disponíveis agora. A IA online pode usar Gemini com cota gratuita. Ative com uma chave privada no Render e acesso administrativo.</p>
+ <details class="ai-setup"><summary>Como ativar o Google Gemini gratuito</summary>
+ <p><strong>1.</strong> Abra <a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google AI Studio</a> e crie uma chave Gemini API em um projeto com acesso ao Free Tier.</p>
+ <p><strong>2.</strong> No <a href="https://dashboard.render.com/web/srv-dbpkmi56e07s73d9fci0" target="_blank" rel="noopener">Render → Environment</a>, cadastre <code>GEMINI_API_KEY</code> e, se ainda não existir, <code>ADMIN_PASSWORD</code> com no mínimo 16 caracteres. O modelo padrão é <code>gemini-3.5-flash-lite</code>.</p>
+ <p><strong>3.</strong> Após a implantação, abra <a href="#conexoes">Conexões</a>, entre no servidor com sua senha administrativa e retorne aqui para usar <strong>Gerar com IA online</strong>.</p>
+ <p class="ai-tip">Nunca envie chaves ao GitHub ou por mensagens. O plano gratuito do Google pode utilizar os dados enviados para aprimorar seus produtos. Consulte os termos e limites da sua conta.</p>
+ </details>
  <div id="ai-status" class="ai-message" role="status" aria-live="polite">Selecione as redes em “Destinos desejados”, informe o nome do produto e gere suas versões.</div>
  <div id="ai-captions" class="ai-output" aria-live="polite"></div>
  <div id="ai-hashtags" class="ai-tags" aria-live="polite"></div>
