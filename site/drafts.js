@@ -39,12 +39,13 @@ function instagramEditor(x){
   '<strong>Publicar no Instagram · '+(x.channel==='instagram-feed'?'Foto':'Reels')+'</strong>'+
   '<label>'+esc(label)+'<input type="url" data-ig-media-url placeholder="https://cdn.exemplo.com/arquivo.'+(x.channel==='instagram-feed'?'jpg':'mp4')+
   '" maxlength="1800" value="'+esc(x.igMediaUrl||'')+'" '+(posted?'disabled':'')+'></label>'+
+  (x.channel==='instagram-feed'&&!posted?'<button type="button" class="secondary" data-draft-action="ig-upload-art">Usar arte do editor (grátis)</button>':'')+
   '<small class="ig-publish-state" aria-live="polite">'+esc(igStatus)+(posted&&x.igMediaId?' · ID: '+esc(x.igMediaId):'')+'</small>'+
   '<div class="network-draft-buttons">'+
   '<button type="button" class="secondary" data-draft-action="ig-prepare" '+(posted?'disabled':'')+'>Preparar na Meta</button>'+
   '<button type="button" class="secondary" data-draft-action="ig-status" '+(!x.igJobId||posted?'disabled':'')+'>Verificar mídia</button>'+
   '<button type="button" class="primary" data-draft-action="ig-publish" '+(x.igStatus!=='ready'?'disabled':'')+'>Publicar agora</button>'+
-  '</div><small class="ai-tip">Requer conta Instagram profissional, autorização de publicação e URL pública direta. Apenas o clique em “Publicar agora” envia o post para o perfil.</small></div>';
+  '</div><small class="ai-tip">Você pode usar a arte pronta do editor sem serviço extra de imagens. O arquivo fica temporariamente no Render Free e pode desaparecer em reinicializações. Somente “Publicar agora” publica no Instagram.</small></div>';
 }
 function render(){
  const area=$('network-drafts');if(!area)return;
@@ -139,8 +140,37 @@ $('network-drafts')?.addEventListener('click',async event=>{
    show('O Instagram ainda não está conectado com a permissão de publicação. Vá a Conexões, configure o app Meta e reconecte o perfil.',true);
    return;
   }
+  if(action==='ig-upload-art'){
+   if(row.channel!=='instagram-feed')return;
+   const canvas=$('art');
+   if(!window.CDESocialData?.hasImage?.()){show('Adicione primeiro a imagem do produto no editor da campanha.',true);return;}
+   if(!canvas||canvas.width!==canvas.height){show('Escolha formato quadrado 1080 × 1080 no editor antes de preparar a foto para Instagram.',true);return;}
+   instagramPending.add(row.id);
+   for(const control of card.querySelectorAll('button'))control.disabled=true;
+   show('Convertendo a arte para JPEG e preparando URL temporária para a Meta...');
+   try{
+    const blob=await new Promise((resolve,reject)=>{
+     try{canvas.toBlob(value=>value?resolve(value):reject(Error('Não foi possível exportar a arte JPEG.')),'image/jpeg',0.9);}
+     catch(err){reject(err);}
+    });
+    const result=await publisher.uploadImage(blob);
+    if(!result.mediaUrl)throw Error('O servidor não retornou URL da imagem.');
+    row.igMediaUrl=result.mediaUrl;
+    row.igMediaExpires=result.expiresAt;
+    row.igJobId=null;row.igStatus='draft';
+    row.igPreparedUrl=null;row.igPreparedCaption=null;
+    row.updated=new Date().toISOString();persist();render();
+    show('A arte está pronta no Render gratuito. Agora clique em “Preparar na Meta” e publique antes que a imagem expire.');
+   }catch(err){
+    show('Falha no preparo da arte: '+String(err.message||err).slice(0,160),true);render();
+   }finally{instagramPending.delete(row.id);}
+   return;
+  }
   const mediaUrl=card.querySelector('[data-ig-media-url]')?.value?.trim()||'';
-  if(!mediaUrl){show('Informe o link HTTPS público direto da foto ou vídeo do Instagram.',true);return;}
+  if(!mediaUrl){show('Informe uma URL HTTPS pública da foto/vídeo ou use o botão “Usar arte do editor”.',true);return;}
+  if(action==='ig-prepare'&&row.igMediaExpires&&mediaUrl===row.igMediaUrl&&new Date(row.igMediaExpires).getTime()<=Date.now()){
+   show('A imagem temporária expirou. Clique novamente em “Usar arte do editor”.',true);return;
+  }
   if(row.igStatus==='published'){show('Este post já foi publicado. Gere outro rascunho para uma nova publicação.',true);return;}
   if(action!=='ig-prepare'&&(!row.igJobId||row.igPreparedCaption!==value||row.igPreparedUrl!==mediaUrl)){
    show('O texto ou link da mídia mudou. Clique em “Preparar na Meta” novamente antes de publicar.',true);return;
