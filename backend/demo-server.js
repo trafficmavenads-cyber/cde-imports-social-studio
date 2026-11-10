@@ -196,9 +196,22 @@ async function handler(req,res){
     body:new URLSearchParams({client_id:INSTAGRAM_CLIENT_ID,client_secret:INSTAGRAM_CLIENT_SECRET,grant_type:'authorization_code',redirect_uri:instagramCallback,code:path.searchParams.get('code')})
    });
    if(!short.access_token)throw Error('Token do Instagram ausente');
+   let token=short.access_token,tokenLifetime=Math.max(1,Number(short.expires_in)||3600);
+   // Exchange the one-hour Instagram token for an optional 60-day token.
+   // Failure does not invent a successful authorization; the verified short token can still work.
+   try{
+    const longUrl=new URL('https://graph.instagram.com/access_token');
+    longUrl.searchParams.set('grant_type','ig_exchange_token');
+    longUrl.searchParams.set('client_secret',INSTAGRAM_CLIENT_SECRET);
+    longUrl.searchParams.set('access_token',short.access_token);
+    const long=await instagramJson(longUrl.href);
+    if(typeof long.access_token==='string'&&long.access_token&&Number(long.expires_in)>0){
+     token=long.access_token;tokenLifetime=Number(long.expires_in);
+    }
+   }catch(err){console.error('Instagram: não foi possível estender o token:',err.name);}
    const u=new URL('https://graph.instagram.com/me');
    u.searchParams.set('fields','id,username,account_type');
-   const profile=await instagramJson(u.toString(),{headers:{Authorization:'Bearer '+short.access_token}});
+   const profile=await instagramJson(u.toString(),{headers:{Authorization:'Bearer '+token}});
    const id=String(profile.id||short.user_id||'');
    if(!id)throw Error('Identificação do Instagram ausente');
    // The token response, not requested OAuth scopes, tells us what was actually granted.
@@ -208,8 +221,8 @@ async function handler(req,res){
    const grantedScopes=granted.map(x=>String(x).trim()).filter(Boolean);
    updateConnection(tx.session,'instagram',{
     openId:id,name:profile.username?'@'+profile.username:'Conta Instagram',
-    connectedAt:new Date().toISOString(),expiresAt:Date.now()+Math.max(1,Number(short.expires_in)||3600)*1000,
-    scopes:grantedScopes.join(','),accessToken:short.access_token
+    connectedAt:new Date().toISOString(),expiresAt:Date.now()+tokenLifetime*1000,
+    scopes:grantedScopes.join(','),accessToken:token
    });
    return redirect(res,'linked','instagram');
   }catch(err){
