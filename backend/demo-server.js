@@ -24,11 +24,15 @@ const ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||'';
 const SCOPES=(process.env.TIKTOK_SCOPES||'user.info.basic').trim();
 const INSTAGRAM_CLIENT_ID=(process.env.INSTAGRAM_CLIENT_ID||'').trim();
 const INSTAGRAM_CLIENT_SECRET=(process.env.INSTAGRAM_CLIENT_SECRET||'').trim();
+const INSTAGRAM_CONFIG_ID=(process.env.INSTAGRAM_CONFIG_ID||'').trim();
+const instagramUnified=/^\d{8,25}$/.test(INSTAGRAM_CONFIG_ID);
+const INSTAGRAM_GRAPH_VERSION=(process.env.INSTAGRAM_GRAPH_VERSION||'v26.0').trim();
+const metaGraph='https://graph.facebook.com/'+(/^v\d{1,2}\.\d$/.test(INSTAGRAM_GRAPH_VERSION)?INSTAGRAM_GRAPH_VERSION:'v26.0');
 // Instagram publishing needs both business scopes; preserve any explicitly added scopes.
 const INSTAGRAM_SCOPES=[...new Set([(process.env.INSTAGRAM_SCOPES||'').trim(),'instagram_business_basic','instagram_business_content_publish']
  .join(',').split(/[,\s]+/).filter(Boolean))].join(',');
 const enabled=Boolean(CLIENT_ID&&CLIENT_SECRET&&ADMIN_PASSWORD.length>=16);
-const instagramEnabled=Boolean(INSTAGRAM_CLIENT_ID&&INSTAGRAM_CLIENT_SECRET&&ADMIN_PASSWORD.length>=16);
+const instagramEnabled=Boolean(INSTAGRAM_CLIENT_ID&&INSTAGRAM_CLIENT_SECRET&&ADMIN_PASSWORD.length>=16&&(!INSTAGRAM_CONFIG_ID||instagramUnified));
 // Gemini is the default: never activate the paid OpenAI provider by accident.
 const AI_PROVIDER=process.env.AI_PROVIDER==='openai'?'openai':'gemini';
 const GEMINI_API_KEY=(process.env.GEMINI_API_KEY||'').trim();
@@ -116,7 +120,8 @@ function accountRows(key){
   const acc=connectionFor(key,id);
   return {id,configured:id==='tiktok'?enabled:instagramEnabled,connected:Boolean(acc),status:acc?(acc.expiresAt<Date.now()?'reconnect_required':'connected'):'not_connected',
    label:acc?.name||null,accountId:acc?.openId||null,connectedAt:acc?.connectedAt||null,
-   expiresAt:acc?.expiresAt||null,scopes:acc?(acc.scopes||''):(id==='tiktok'?SCOPES:INSTAGRAM_SCOPES)};
+   expiresAt:acc?.expiresAt||null,scopes:acc?(acc.scopes||''):(id==='tiktok'?SCOPES:instagramUnified?'instagram_basic,instagram_content_publish':INSTAGRAM_SCOPES),
+   loginMode:id==='instagram'?(instagramUnified?'unified':'instagram'):null,grantSource:acc?.grantSource||null};
  });
 }
 async function handler(req,res){
@@ -129,11 +134,11 @@ async function handler(req,res){
  }
  if(req.method==='GET'&&url==='/api/health'){
   return reply(req,res,200,{
-   ok:true,service:'CDE Imports Social Studio',version:'0.14.0',
+   ok:true,service:'CDE Imports Social Studio',version:'0.15.0',
    mode:authEnabled?'oauth-temporary':'demo',demoMode:!authEnabled,temporaryStorage:true,
    providerConfigured:{instagram:instagramEnabled,tiktok:enabled,pinterest:false,youtube:false},
    aiConfigured:aiEnabled,aiProvider:aiEnabled?AI_PROVIDER:null,aiModel:aiEnabled?(AI_PROVIDER==='gemini'?GEMINI_MODEL:AI_MODEL):null,aiEndpoint:'/api/ai/captions',
-   callbackUrl:callback,instagramCallbackUrl:instagramCallback,
+   callbackUrl:callback,instagramCallbackUrl:instagramCallback,instagramLoginMode:instagramUnified?'unified':'instagram',
    scopes:SCOPES,instagramScopes:INSTAGRAM_SCOPES,
    message:authEnabled?'Autorização temporária habilitada para as redes configuradas. Tokens são mantidos apenas na memória do Render Free.':'Render Free: configure credenciais de aplicativo e senha administrativa para habilitar o teste OAuth.',
    serverTime:new Date().toISOString()
@@ -191,6 +196,53 @@ async function handler(req,res){
   if(!tx||tx.provider!=='instagram'||tx.expires<=Date.now()||!sessions.has(tx.session))return redirect(res,'invalid_state','instagram');
   if(path.searchParams.has('error')||!path.searchParams.get('code'))return redirect(res,'denied','instagram');
   try{
+   if(instagramUnified){
+    const ex=new URL(metaGraph+'/oauth/access_token');
+    for(const [k,v] of Object.entries({
+     client_id:INSTAGRAM_CLIENT_ID,client_secret:INSTAGRAM_CLIENT_SECRET,
+     redirect_uri:instagramCallback,code:path.searchParams.get('code')
+    }))ex.searchParams.set(k,v);
+    const result=await instagramJson(ex.href);
+    if(typeof result.access_token!=='string'||!result.access_token)throw Error('Token Meta ausente.');
+    const token=result.access_token;
+    // System-user access token: /me identifies the system user, NOT the Instagram profile.
+    // Obtain assigned Instagram assets, do not select a random account from multiple assets.
+    const assigned=new Map();let after='';
+    for(let page=0;page<10;page++){
+     const u=new URL(metaGraph+'/me/assigned_instagram_accounts');
+     u.searchParams.set('fields','id,username');
+     if(after)u.searchParams.set('after',after);
+     const data=await instagramJson(u.href,{headers:{Authorization:'Bearer '+token}});
+     if(!Array.isArray(data.data))throw Error('Resposta de contas atribuídas inválida.');
+     for(const item of data.data)if(/^\d+$/.test(String(item.id||'')))
+      assigned.set(String(item.id),{id:String(item.id),username:String(item.username||'')});
+     const next=String(data.paging?.cursors?.after||'');
+     if(!next||next===after||!data.data.length)break;
+     after=next;
+     if(page===9)throw Error('A lista de contas excede o limite de segurança.');
+    }
+    if(assigned.size!==1)return redirect(res,assigned.size?'multiple_accounts':'no_instagram_assets','instagram');
+    const profile=[...assigned.values()][0];
+    let grants=[],source='not_verified';
+    try{
+     const permissions=await instagramJson(metaGraph+'/me/permissions',{
+      headers:{Authorization:'Bearer '+token}
+     });
+     if(Array.isArray(permissions.data)){
+      grants=permissions.data.filter(p=>p?.status==='granted').map(p=>String(p.permission||'')).filter(Boolean);
+      source='verified';
+     }
+    }catch(err){console.error('Permissões Unified não disponíveis:',err.name);}
+    const lifetime=Number(result.expires_in);
+    // The Render Free process is transient, even if the system-user token is nonexpiring.
+    const expiresAt=Date.now()+(Number.isFinite(lifetime)&&lifetime>0?lifetime*1000:SESSION_MS);
+    updateConnection(tx.session,'instagram',{
+     openId:profile.id,name:profile.username?'@'+profile.username:'Instagram profissional',
+     connectedAt:new Date().toISOString(),expiresAt,
+     scopes:grants.join(','),grantSource:source,flow:'unified',accessToken:token
+    });
+    return redirect(res,'linked','instagram');
+   }
    const tokenResponse=await instagramJson('https://api.instagram.com/oauth/access_token',{
     method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams({client_id:INSTAGRAM_CLIENT_ID,client_secret:INSTAGRAM_CLIENT_SECRET,grant_type:'authorization_code',redirect_uri:instagramCallback,code:path.searchParams.get('code')})
@@ -321,8 +373,12 @@ async function handler(req,res){
   if(!instagramEnabled)return reply(req,res,409,{error:'Configure INSTAGRAM_CLIENT_ID e INSTAGRAM_CLIENT_SECRET no servidor.'});
   if(states.size>100)return reply(req,res,429,{error:'Muitas autorizações pendentes.'});
   const state=fresh();states.set(state,{provider:'instagram',session,expires:Date.now()+OAUTH_MS});
-  const u=new URL('https://www.instagram.com/oauth/authorize');
-  for(const [k,v] of Object.entries({client_id:INSTAGRAM_CLIENT_ID,redirect_uri:instagramCallback,scope:INSTAGRAM_SCOPES,response_type:'code',state,force_reauth:'true'}))u.searchParams.set(k,v);
+  const u=new URL(instagramUnified?'https://www.facebook.com/dialog/oauth':'https://www.instagram.com/oauth/authorize');
+  const values=instagramUnified?
+    {client_id:INSTAGRAM_CLIENT_ID,config_id:INSTAGRAM_CONFIG_ID,redirect_uri:instagramCallback,
+     response_type:'code',override_default_response_type:'true',state,prompt:'login'}:
+    {client_id:INSTAGRAM_CLIENT_ID,redirect_uri:instagramCallback,scope:INSTAGRAM_SCOPES,response_type:'code',state,force_reauth:'true'};
+  for(const [k,v] of Object.entries(values))u.searchParams.set(k,v);
   return reply(req,res,200,{authorizationUrl:u.href});
  }
  if(req.method==='DELETE'&&url==='/api/accounts/instagram'){
