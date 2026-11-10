@@ -20,7 +20,12 @@ const CLIENT_ID=(process.env.TIKTOK_CLIENT_ID||'').trim();
 const CLIENT_SECRET=(process.env.TIKTOK_CLIENT_SECRET||'').trim();
 const ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||'';
 const SCOPES=(process.env.TIKTOK_SCOPES||'user.info.basic').trim();
+const INSTAGRAM_CLIENT_ID=(process.env.INSTAGRAM_CLIENT_ID||'').trim();
+const INSTAGRAM_CLIENT_SECRET=(process.env.INSTAGRAM_CLIENT_SECRET||'').trim();
+const INSTAGRAM_SCOPES=(process.env.INSTAGRAM_SCOPES||'instagram_business_basic').trim();
 const enabled=Boolean(CLIENT_ID&&CLIENT_SECRET&&ADMIN_PASSWORD.length>=16);
+const instagramEnabled=Boolean(INSTAGRAM_CLIENT_ID&&INSTAGRAM_CLIENT_SECRET&&ADMIN_PASSWORD.length>=16);
+const authEnabled=enabled||instagramEnabled;
 const SESSION_MS=6*60*60*1000;
 const OAUTH_MS=10*60*1000;
 const sessions=new Map();
@@ -31,12 +36,13 @@ const secret=crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
 const fresh=()=>crypto.randomBytes(32).toString('base64url');
 const sha=x=>crypto.createHash('sha256').update(String(x)).digest('hex');
 const callback=API_BASE+'/api/oauth/callback/tiktok';
+const instagramCallback=API_BASE+'/api/oauth/callback/instagram';
 const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer'};
 function corsFor(req){return req.headers.origin===FRONT_ORIGIN?{'Access-Control-Allow-Origin':FRONT_ORIGIN,'Vary':'Origin'}:{};}
 function reply(req,res,code,body){res.writeHead(code,{...headers,...corsFor(req),'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(body));}
-function redirect(res,result){
+function redirect(res,result,network='tiktok'){
  const u=new URL(SITE_URL);
- u.searchParams.set('oauth_network','tiktok');
+ u.searchParams.set('oauth_network',network);
  u.searchParams.set('oauth_result',result);
  u.hash='conexoes';
  res.writeHead(302,{...headers,Location:u.href});res.end();
@@ -74,13 +80,28 @@ async function tiktokJson(url,options={}){
  }
  return data;
 }
+function connectionFor(session,provider){
+ return connections.get(session)?.[provider]||null;
+}
+function updateConnection(session,provider,data){
+ const previous=connections.get(session)||{};
+ if(data===null)delete previous[provider];else previous[provider]=data;
+ if(Object.keys(previous).length)connections.set(session,previous);
+ else connections.delete(session);
+}
+async function instagramJson(url,options={}){
+ const r=await fetch(url,{...options,redirect:'error',signal:AbortSignal.timeout(15000),headers:{'Accept':'application/json',...(options.headers||{})}});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok||data.error)throw Error('A Meta recusou a autorização do Instagram.');
+ return data;
+}
 function accountRows(key){
- const acc=connections.get(key);
  return ['instagram','tiktok','pinterest','youtube'].map(id=>{
-  if(id!=='tiktok')return {id,configured:false,connected:false,status:'not_connected'};
-  return {id,configured:enabled,connected:Boolean(acc),status:acc?'connected':'not_connected',
+  if(id!=='tiktok'&&id!=='instagram')return {id,configured:false,connected:false,status:'not_connected'};
+  const acc=connectionFor(key,id);
+  return {id,configured:id==='tiktok'?enabled:instagramEnabled,connected:Boolean(acc),status:acc?(acc.expiresAt<Date.now()?'reconnect_required':'connected'):'not_connected',
    label:acc?.name||null,accountId:acc?.openId||null,connectedAt:acc?.connectedAt||null,
-   expiresAt:acc?.expiresAt||null,scopes:acc?.scopes||SCOPES};
+   expiresAt:acc?.expiresAt||null,scopes:acc?.scopes||(id==='tiktok'?SCOPES:INSTAGRAM_SCOPES)};
  });
 }
 async function handler(req,res){
@@ -92,17 +113,18 @@ async function handler(req,res){
  }
  if(req.method==='GET'&&url==='/api/health'){
   return reply(req,res,200,{
-   ok:true,service:'CDE Imports Social Studio',version:'0.9.0',
-   mode:enabled?'tiktok-temporary':'demo',demoMode:!enabled,temporaryStorage:true,
-   providerConfigured:{instagram:false,tiktok:enabled,pinterest:false,youtube:false},
-   callbackUrl:callback,scopes:SCOPES,
-   message:enabled?'TikTok Login Kit habilitado para teste com tokens temporários.':'Render Free: configure Client Key, Client Secret e senha administrativa para testar o Login Kit.',
+   ok:true,service:'CDE Imports Social Studio',version:'0.10.0',
+   mode:authEnabled?'oauth-temporary':'demo',demoMode:!authEnabled,temporaryStorage:true,
+   providerConfigured:{instagram:instagramEnabled,tiktok:enabled,pinterest:false,youtube:false},
+   callbackUrl:callback,instagramCallbackUrl:instagramCallback,
+   scopes:SCOPES,instagramScopes:INSTAGRAM_SCOPES,
+   message:authEnabled?'Autorização temporária habilitada para as redes configuradas. Tokens são mantidos apenas na memória do Render Free.':'Render Free: configure credenciais de aplicativo e senha administrativa para habilitar o teste OAuth.',
    serverTime:new Date().toISOString()
   });
  }
- if(req.method==='GET'&&url==='/api/demo/ping')return reply(req,res,200,{ok:true,roundTrip:'ok',demoMode:!enabled});
- if(req.method==='GET'&&url==='/')return reply(req,res,200,{ok:true,service:'CDE Imports TikTok Login Kit',mode:enabled?'tiktok-temporary':'demo',help:'/api/health'});
- if(!enabled)return reply(req,res,405,{error:'Servidor de demonstração. OAuth desativado até configurar credenciais privadas no Render.'});
+ if(req.method==='GET'&&url==='/api/demo/ping')return reply(req,res,200,{ok:true,roundTrip:'ok',demoMode:!authEnabled});
+ if(req.method==='GET'&&url==='/')return reply(req,res,200,{ok:true,service:'CDE Imports Social Studio OAuth',mode:authEnabled?'oauth-temporary':'demo',help:'/api/health'});
+ if(!authEnabled)return reply(req,res,405,{error:'Servidor de demonstração. OAuth desativado até configurar credenciais privadas no Render.'});
  if(req.method==='POST'&&url==='/api/login'){
   const ip=req.socket.remoteAddress||'unknown';
   const prev=attempts.get(ip);
@@ -121,7 +143,7 @@ async function handler(req,res){
  if(req.method==='GET'&&url===codePath){
   const state=path.searchParams.get('state')||'';
   const tx=states.get(state);states.delete(state);
-  if(!tx||tx.expires<=Date.now()||!sessions.has(tx.session))return redirect(res,'invalid_state');
+  if(!tx||tx.provider!=='tiktok'||tx.expires<=Date.now()||!sessions.has(tx.session))return redirect(res,'invalid_state');
   if(path.searchParams.get('error')||!path.searchParams.get('code'))return redirect(res,'denied');
   try{
    const data=await tiktokJson('https://open.tiktokapis.com/v2/oauth/token/',{
@@ -133,7 +155,7 @@ async function handler(req,res){
    const info=await tiktokJson('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url',{headers:{Authorization:'Bearer '+data.access_token}});
    const user=info.data?.user||{};
    if(!user.open_id||user.open_id!==data.open_id)throw new Error('Conta TikTok não confirmada.');
-   connections.set(tx.session,{
+   updateConnection(tx.session,'tiktok',{
     openId:user.open_id,name:user.display_name||'Conta TikTok',
     connectedAt:new Date().toISOString(),expiresAt:Date.now()+(Number(data.expires_in)||86400)*1000,
     scopes:data.scope||SCOPES,accessToken:data.access_token,refreshToken:data.refresh_token||null
@@ -145,18 +167,58 @@ async function handler(req,res){
    return redirect(res,'failed');
   }
  }
+ const igPath='/api/oauth/callback/instagram';
+ if(req.method==='GET'&&url===igPath){
+  const state=path.searchParams.get('state')||'';
+  const tx=states.get(state);states.delete(state);
+  if(!tx||tx.provider!=='instagram'||tx.expires<=Date.now()||!sessions.has(tx.session))return redirect(res,'invalid_state','instagram');
+  if(path.searchParams.has('error')||!path.searchParams.get('code'))return redirect(res,'denied','instagram');
+  try{
+   const short=await instagramJson('https://api.instagram.com/oauth/access_token',{
+    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:INSTAGRAM_CLIENT_ID,client_secret:INSTAGRAM_CLIENT_SECRET,grant_type:'authorization_code',redirect_uri:instagramCallback,code:path.searchParams.get('code')})
+   });
+   if(!short.access_token)throw Error('Token do Instagram ausente');
+   const u=new URL('https://graph.instagram.com/me');
+   u.searchParams.set('fields','id,username,account_type');
+   const profile=await instagramJson(u.toString(),{headers:{Authorization:'Bearer '+short.access_token}});
+   const id=String(profile.id||short.user_id||'');
+   if(!id)throw Error('Identificação do Instagram ausente');
+   updateConnection(tx.session,'instagram',{
+    openId:id,name:profile.username?'@'+profile.username:'Conta Instagram',
+    connectedAt:new Date().toISOString(),expiresAt:Date.now()+Math.max(1,Number(short.expires_in)||3600)*1000,
+    scopes:INSTAGRAM_SCOPES,accessToken:short.access_token
+   });
+   return redirect(res,'linked','instagram');
+  }catch(err){
+   console.error('Falha na autorização Instagram:',err.name);
+   return redirect(res,'failed','instagram');
+  }
+ }
  const session=sessionKey(req);
  if(!session)return reply(req,res,401,{error:'Sessão administrativa expirada. Entre novamente.'});
  if(req.method==='GET'&&url==='/api/accounts')return reply(req,res,200,{accounts:accountRows(session),temporaryStorage:true});
  if(req.method==='POST'&&url==='/api/oauth/start/tiktok'){
   if(states.size>100)return reply(req,res,429,{error:'Muitas autorizações pendentes.'});
-  const state=fresh();states.set(state,{session,expires:Date.now()+OAUTH_MS});
+  const state=fresh();states.set(state,{provider:'tiktok',session,expires:Date.now()+OAUTH_MS});
   const u=new URL('https://www.tiktok.com/v2/auth/authorize/');
   for(const [k,v] of Object.entries({client_key:CLIENT_ID,response_type:'code',scope:SCOPES,redirect_uri:callback,state}))u.searchParams.set(k,v);
   return reply(req,res,200,{authorizationUrl:u.href});
  }
+ if(req.method==='POST'&&url==='/api/oauth/start/instagram'){
+  if(!instagramEnabled)return reply(req,res,409,{error:'Configure INSTAGRAM_CLIENT_ID e INSTAGRAM_CLIENT_SECRET no servidor.'});
+  if(states.size>100)return reply(req,res,429,{error:'Muitas autorizações pendentes.'});
+  const state=fresh();states.set(state,{provider:'instagram',session,expires:Date.now()+OAUTH_MS});
+  const u=new URL('https://www.instagram.com/oauth/authorize');
+  for(const [k,v] of Object.entries({client_id:INSTAGRAM_CLIENT_ID,redirect_uri:instagramCallback,scope:INSTAGRAM_SCOPES,response_type:'code',state,force_reauth:'true'}))u.searchParams.set(k,v);
+  return reply(req,res,200,{authorizationUrl:u.href});
+ }
+ if(req.method==='DELETE'&&url==='/api/accounts/instagram'){
+  updateConnection(session,'instagram',null);
+  return reply(req,res,200,{ok:true,notice:'Autorização do Instagram removida da memória do servidor de testes.'});
+ }
  if(req.method==='DELETE'&&url==='/api/accounts/tiktok'){
-  connections.delete(session);
+  updateConnection(session,'tiktok',null);
   return reply(req,res,200,{ok:true,notice:'A autorização foi encerrada no ambiente de testes. Revogue também o aplicativo nas configurações do TikTok.'});
  }
  if(req.method==='POST'&&url==='/api/logout'){
@@ -173,4 +235,4 @@ http.createServer((req,res)=>{
   if(!res.headersSent)reply(req,res,500,{error:'Não foi possível concluir a solicitação.'});
   else res.end();
  });
-}).listen(PORT,'0.0.0.0',()=>console.log('CDE TikTok '+(enabled?'OAuth temporário':'demo')+' na porta '+PORT));
+}).listen(PORT,'0.0.0.0',()=>console.log('CDE Social OAuth '+(authEnabled?'temporário':'demo')+' na porta '+PORT));
