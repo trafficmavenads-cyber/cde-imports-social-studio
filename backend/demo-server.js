@@ -13,6 +13,7 @@
 const http=require('node:http');
 const crypto=require('node:crypto');
 const {createPublisher}=require('./instagram-publisher.js');
+const {createMediaStore}=require('./instagram-media.js');
 const PORT=Number(process.env.PORT||10000);
 const SITE_URL='https://trafficmavenads-cyber.github.io/cde-imports-social-studio/';
 const API_BASE='https://cde-imports-social-demo.onrender.com';
@@ -44,6 +45,7 @@ const connections=new Map();
 const attempts=new Map();
 const aiLimits=new Map();
 const instagramPublisher=createPublisher({getAccount:session=>connectionFor(session,'instagram'),callMeta:instagramJson});
+const instagramImages=createMediaStore({apiBase:API_BASE});
 const secret=crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
 const fresh=()=>crypto.randomBytes(32).toString('base64url');
 const sha=x=>crypto.createHash('sha256').update(String(x)).digest('hex');
@@ -114,19 +116,20 @@ function accountRows(key){
   const acc=connectionFor(key,id);
   return {id,configured:id==='tiktok'?enabled:instagramEnabled,connected:Boolean(acc),status:acc?(acc.expiresAt<Date.now()?'reconnect_required':'connected'):'not_connected',
    label:acc?.name||null,accountId:acc?.openId||null,connectedAt:acc?.connectedAt||null,
-   expiresAt:acc?.expiresAt||null,scopes:acc?.scopes||(id==='tiktok'?SCOPES:INSTAGRAM_SCOPES)};
+   expiresAt:acc?.expiresAt||null,scopes:acc?(acc.scopes||''):(id==='tiktok'?SCOPES:INSTAGRAM_SCOPES)};
  });
 }
 async function handler(req,res){
  clearExpired();
  const path=new URL(req.url,'http://localhost'),url=path.pathname;
  if(req.headers.origin&&req.headers.origin!==FRONT_ORIGIN)return reply(req,res,403,{error:'Origem não autorizada.'});
+ if(instagramImages.serve(req,res,url))return;
  if(req.method==='OPTIONS'){
   res.writeHead(204,{...headers,...corsFor(req),'Access-Control-Allow-Methods':'GET,POST,DELETE,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization','Access-Control-Max-Age':'300'});return res.end();
  }
  if(req.method==='GET'&&url==='/api/health'){
   return reply(req,res,200,{
-   ok:true,service:'CDE Imports Social Studio',version:'0.13.0',
+   ok:true,service:'CDE Imports Social Studio',version:'0.14.0',
    mode:authEnabled?'oauth-temporary':'demo',demoMode:!authEnabled,temporaryStorage:true,
    providerConfigured:{instagram:instagramEnabled,tiktok:enabled,pinterest:false,youtube:false},
    aiConfigured:aiEnabled,aiProvider:aiEnabled?AI_PROVIDER:null,aiModel:aiEnabled?(AI_PROVIDER==='gemini'?GEMINI_MODEL:AI_MODEL):null,aiEndpoint:'/api/ai/captions',
@@ -217,6 +220,10 @@ async function handler(req,res){
  const session=sessionKey(req);
  if(!session)return reply(req,res,401,{error:'Sessão administrativa expirada. Entre novamente.'});
  if(req.method==='GET'&&url==='/api/accounts')return reply(req,res,200,{accounts:accountRows(session),temporaryStorage:true});
+ if(req.method==='POST'&&url==='/api/instagram/media/upload'){
+  const result=await instagramImages.stage(req,session);
+  return reply(req,res,result.code,result.body);
+ }
  if(req.method==='POST'&&['/api/instagram/publish/prepare','/api/instagram/publish/status','/api/instagram/publish/confirm'].includes(url)){
   if(!instagramEnabled)return reply(req,res,409,{error:'Adicione INSTAGRAM_CLIENT_ID e INSTAGRAM_CLIENT_SECRET no Render.'});
   const input=await getBody(req);
@@ -323,4 +330,4 @@ http.createServer((req,res)=>{
   if(!res.headersSent)reply(req,res,500,{error:'Não foi possível concluir a solicitação.'});
   else res.end();
  });
-}).listen(PORT,'0.0.0.0',()=>console.log('CDE Social OAuth '+(authEnabled?'temporário':'demo')+' na porta '+PORT));
+}).listen(PORT,'0.0.0.0',()=>console.log('CDE Social OAuth '+(authEnabled?'temporário':'demo')+' na porta '+PORT+'; instagramConfigured='+instagramEnabled+'; aiConfigured='+aiEnabled));
