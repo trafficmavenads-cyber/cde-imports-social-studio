@@ -1,3 +1,20 @@
+## Instagram — Login direto de conta profissional (versão 0.10 de teste)
+
+A mesma instância **Render Free** aceita testes de Login Kit do TikTok e **Instagram API with Instagram Login**, de forma independente, com tokens somente em memória. A conexão do Instagram não depende da aprovação do TikTok.
+
+1. A conta precisa ser **profissional (Empresa ou Criador)**. A modalidade Instagram Login dispensa associar o perfil a uma Página do Facebook; não confunda com a modalidade Instagram API with Facebook Login.
+2. Entre em https://developers.facebook.com/apps/ e crie/abra um aplicativo. Adicione o produto **Instagram → API setup with Instagram Login**, nas versões do painel Meta em que estiver disponível.
+3. Na configuração **Business login settings → OAuth redirect URIs**, registre exatamente:
+   `https://cde-imports-social-demo.onrender.com/api/oauth/callback/instagram`
+4. Configure inicialmente a permissão `instagram_business_basic` (identificação do perfil). Para publicar posteriormente, solicite `instagram_business_content_publish`, sujeito aos requisitos da Meta.
+5. Copie o **Instagram App ID** e o **Instagram App Secret** obtidos dentro das configurações da API do Instagram. **Eles podem ser diferentes do Meta App ID e App Secret gerais.**
+6. No Render, serviço `cde-imports-social-demo`, **Environment**, cadastre `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET` e, caso ainda não exista, uma `ADMIN_PASSWORD` nova com no mínimo 16 caracteres. Não publique valores no GitHub ou no chat.
+7. Depois do deploy, confira `/api/health`: `providerConfigured.instagram=true`. No [Social Studio](https://trafficmavenads-cyber.github.io/cde-imports-social-studio/#conexoes), entre com a senha administrativa, clique **Conectar Instagram** e autorize pelo login oficial da Meta.
+8. Durante testes em modo desenvolvimento, a conta precisa ter o papel/permissão de teste exigido pelo app Meta. Pessoas externas precisam de aprovações e permissões aplicáveis. A integração não publica posts automaticamente.
+
+**Limitações importantes:** tokens temporários são descartados em suspensão, restart ou deploy da instância gratuita; o ambiente não é recomendado para operações de produção e não possui cofre persistente. O primeiro login usa `instagram_business_basic`, sem permissões de publicação ou mensagens. Ao solicitar novas permissões, teste novamente a autorização e siga a revisão da Meta.
+
+---
 ## Testar TikTok Login Kit no Render gratuito (versão 0.9)
 
 O serviço `cde-imports-social-demo` usa `backend/demo-server.js`. Agora ele tem dois modos:
