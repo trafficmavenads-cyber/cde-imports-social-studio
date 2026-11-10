@@ -132,11 +132,12 @@ function render(){renderCaptions();renderTags();renderIdeas();}
 function onlineStatus(){
  const info=window.CDEAIBackend?.status?.()||{available:false,configured:false};
  $('ai-online').disabled=state.generating||!info.available;
+ const provider=info.provider==='gemini'?'Google Gemini':info.provider==='openai'?'OpenAI API':'IA';
  $('ai-online-note').textContent=info.available
-  ?'IA online disponível. O uso da API pode gerar cobrança na sua conta.'
+  ?provider+' conectado ao servidor. Revise as sugestões; a cota e os preços dependem do plano do provedor.'
   :info.configured
-   ?'IA online configurada. Entre no servidor pela seção Conexões para utilizar.'
-   :'Sugestões locais gratuitas ativas. Para IA online, configure OPENAI_API_KEY e ADMIN_PASSWORD somente no Render (API cobrada por uso).';
+   ?provider+' configurado no Render. Entre com a senha administrativa na seção Conexões.'
+   :'IA online gratuita opcional: obtenha sua chave no Google AI Studio e configure GEMINI_API_KEY e ADMIN_PASSWORD apenas no Render. O gerador local continua funcionando.';
 }
 function busy(on){state.generating=on;$('ai-local').disabled=on;$('ai-unblock').disabled=on;onlineStatus();}
 function valid(d){
