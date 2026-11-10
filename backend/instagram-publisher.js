@@ -23,7 +23,8 @@ function publicMediaUrl(input){
 }
 function createPublisher({getAccount,callMeta}){
  const jobs=new Map();
- const graph='https://graph.instagram.com/'+(/^\x76\d{1,2}\.\d$/.test(API_VERSION)?API_VERSION:'v26.0');
+ const version=/^v\d{1,2}\.\d$/.test(API_VERSION)?API_VERSION:'v26.0';
+ const graphFor=acc=>(acc?.flow==='unified'?'https://graph.facebook.com/':'https://graph.instagram.com/')+version;
  function cleanup(){
   for(const [key,job] of jobs)if(job.created+MAX_JOB_MS<Date.now())jobs.delete(key);
  }
@@ -31,8 +32,12 @@ function createPublisher({getAccount,callMeta}){
   const acc=getAccount(session);
   if(!acc||!acc.accessToken||!acc.openId)return {error:'Conecte sua conta Instagram profissional na seção Conexões.'};
   if(!acc.expiresAt||acc.expiresAt<=Date.now())return {error:'A autorização do Instagram expirou. Reconecte sua conta.'};
-  if(!String(acc.scopes||'').split(/[,\s]+/).includes(PUBLISH_SCOPE))
-   return {error:'Reconecte a conta concedendo instagram_business_content_publish no aplicativo Meta.'};
+  const publishScope=acc.flow==='unified'?'instagram_content_publish':PUBLISH_SCOPE;
+  if((acc.flow!=='unified'||acc.grantSource==='verified')&&
+      !String(acc.scopes||'').split(/[,\s]+/).includes(publishScope))
+   return {error:'A conta não concedeu '+publishScope+'. Revise a configuração na Meta e reconecte o Instagram.'};
+  // When Meta does not expose /me/permissions for system-user tokens,
+  // attempt only the explicitly requested operation; Meta enforces the permission.
   return {account:acc};
  }
  function getJob(session,input){
@@ -60,7 +65,7 @@ function createPublisher({getAccount,callMeta}){
   const job={id,session,accountId:String(account.openId),kind:input.kind,created:Date.now(),state:'preparing',caption,mediaUrl:url};
   jobs.set(id,job);
   try{
-   const data=await callMeta(graph+'/'+encodeURIComponent(job.accountId)+'/media',{
+   const data=await callMeta(graphFor(account)+'/'+encodeURIComponent(job.accountId)+'/media',{
     method:'POST',headers:{Authorization:'Bearer '+account.accessToken,'Content-Type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams(args)
    });
@@ -82,7 +87,7 @@ function createPublisher({getAccount,callMeta}){
   if(job.state==='unknown')return {code:409,body:{error:'Resultado do envio não confirmado. Confira o Instagram antes de tentar criar outra publicação.'}};
   if(job.state==='publishing')return {code:409,body:{error:'Publicação em andamento. Não repita o envio.'}};
   try{
-   const info=await callMeta(graph+'/'+encodeURIComponent(job.containerId)+'?fields=status_code',{
+   const info=await callMeta(graphFor(account)+'/'+encodeURIComponent(job.containerId)+'?fields=status_code',{
     headers:{Authorization:'Bearer '+account.accessToken}
    });
    const state=String(info.status_code||'').toUpperCase();
@@ -106,7 +111,7 @@ function createPublisher({getAccount,callMeta}){
   job.state='checking';
   let state;
   try{
-   const info=await callMeta(graph+'/'+encodeURIComponent(job.containerId)+'?fields=status_code',{
+   const info=await callMeta(graphFor(account)+'/'+encodeURIComponent(job.containerId)+'?fields=status_code',{
     headers:{Authorization:'Bearer '+account.accessToken}
    });
    state=String(info.status_code||'').toUpperCase();
@@ -121,7 +126,7 @@ function createPublisher({getAccount,callMeta}){
   // Transition synchronously before the external call to prevent duplicate POSTs.
   job.state='publishing';
   try{
-   const data=await callMeta(graph+'/'+encodeURIComponent(job.accountId)+'/media_publish',{
+   const data=await callMeta(graphFor(account)+'/'+encodeURIComponent(job.accountId)+'/media_publish',{
     method:'POST',headers:{Authorization:'Bearer '+account.accessToken,'Content-Type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams({creation_id:job.containerId})
    });
