@@ -167,6 +167,17 @@ window.CDEInstagramPublisher={
    ready:Boolean(session&&account?.connected&&account.status==='connected'&&scopes.includes('instagram_business_content_publish')),
    label:account?.label||null,scopes:account?.scopes||'',requestedScopes:health?.instagramScopes||''};
  },
+ uploadImage:async blob=>{
+  if(!session||!api)throw Error('Entre com a senha administrativa antes de carregar fotos.');
+  if(!blob||blob.type!=='image/jpeg')throw Error('Envie apenas uma imagem JPEG.');
+  const r=await fetch(api+'/api/instagram/media/upload',{
+   method:'POST',mode:'cors',cache:'no-store',
+   headers:{Authorization:'Bearer '+session,'Content-Type':'image/jpeg'},body:blob
+  });
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw Error(String(data.error||'Não foi possível preparar a imagem.').slice(0,220));
+  return data;
+ },
  prepare:async ({kind,mediaUrl,caption})=>request('/api/instagram/publish/prepare',{method:'POST',body:JSON.stringify({kind,mediaUrl,caption})}),
  checkStatus:async jobId=>request('/api/instagram/publish/status',{method:'POST',body:JSON.stringify({jobId})}),
  confirm:async jobId=>request('/api/instagram/publish/confirm',{method:'POST',body:JSON.stringify({jobId,confirm:true})}),
