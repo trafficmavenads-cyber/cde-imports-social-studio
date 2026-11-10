@@ -175,15 +175,16 @@ function imageToJpeg(file,kind,text,cta){
   reader.readAsDataURL(file);
  });
 }
-function buildItems(files,kind,caption,when,auto,text,cta,link){
+function buildItems(files,kind,caption,when,auto,text,cta,link,intervalHours){
  const made=[],schedule=when?new Date(when).toISOString():null;
  if(kind==='CAROUSEL'){
   made.push({id:id(),title:'Carrossel · '+files.length+' mídias',kind,caption,when:schedule,auto,
    status:schedule?'scheduled':'draft',items:files.map(f=>({key:f.key||null,name:f.file.name,mediaType:f.file.type,mediaUrl:f.mediaUrl||null})),
    created:new Date().toISOString()});
- }else for(const value of files){
+ }else for(const [index,value] of files.entries()){
   const targetKind=kindFrom(kind,value.file);
-  made.push({id:id(),title:clean(value.file.name),kind:targetKind,caption,when:schedule,auto,
+  const itemTime=schedule?new Date(new Date(schedule).getTime()+index*intervalHours*3600000).toISOString():null;
+  made.push({id:id(),title:clean(value.file.name),kind:targetKind,caption,when:itemTime,auto,
    storyText:text,storyCta:cta,storyLink:link,
    status:schedule?'scheduled':'draft',items:[{key:value.key||null,name:value.file.name,mediaType:value.file.type,mediaUrl:value.mediaUrl||null}],
    created:new Date().toISOString()});
@@ -195,6 +196,9 @@ async function addToQueue(){
  let remotes;
  try{remotes=parseRemoteItems();}catch(err){return notice(err.message||String(err),true);}
  const allMedia=[...selected,...remotes.map(x=>x.file)];
+ if(!$('ig-bulk-rights')?.checked)return notice('Confirme os direitos de uso comercial dos arquivos antes de adicionar à fila.',true);
+ const intervalHours=Number($('ig-bulk-interval')?.value||0);
+ if(!Number.isFinite(intervalHours)||intervalHours<0||intervalHours>720)return notice('O intervalo deve estar entre 0 e 720 horas.',true);
  const fail=possible(format,allMedia);if(fail)return notice(fail,true);
  if(queue.length+allMedia.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
  if(auto&&!when)return notice('Escolha data e hora antes de autorizar a publicação automática.',true);
@@ -213,7 +217,7 @@ async function addToQueue(){
    const key=id();await putFile(key,file);refs.push({file,key});
   }
   refs.push(...remotes);
-  const entries=buildItems(refs,format,caption,when,auto,text,cta,link);
+  const entries=buildItems(refs,format,caption,when,auto,text,cta,link,intervalHours);
   queue.push(...entries);save();selected=[];$('ig-bulk-files').value='';$('ig-bulk-urls').value='';preview();refresh();
   notice(entries.length+' publicação(ões) adicionada(s). Arquivos guardados somente neste navegador.');
  }catch(e){notice('Falha ao armazenar os arquivos: '+String(e.message||e),true);}
