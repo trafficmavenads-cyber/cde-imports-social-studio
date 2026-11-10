@@ -4,17 +4,25 @@ O painel possui gerador **local e gratuito** de 2 versões de legenda para cada 
 
 O painel **Insights de performance** calcula taxas e rankings apenas quando há registros manuais de visualizações, curtidas, comentários e compartilhamentos em publicações. Não consulta APIs sociais nem garante resultados. A taxa é (curtidas + comentários + compartilhamentos) / visualizações; pode exceder 100% em casos de múltiplas interações.
 
-### IA generativa opcional (OpenAI API)
+### IA generativa com Google Gemini — opção gratuita
 
-Para ativar **Gerar com IA online**, configure **privadamente** em Render → Environment:
+O backend Render Free está preparado para usar o **Google Gemini 3.5 Flash-Lite** como IA padrão, disponível no nível gratuito do Gemini API dentro das cotas estabelecidas pelo Google. O projeto não muda automaticamente para um provedor pago se a cota gratuita acabar.
 
-- `OPENAI_API_KEY`: chave da OpenAI API (não colocar no GitHub, browser ou chat).
-- `ADMIN_PASSWORD`: senha administrativa com pelo menos 16 caracteres, usada também nas conexões OAuth, se ainda não estiver cadastrada.
-- `OPENAI_MODEL`: opcional, padrão `gpt-4.1-mini`.
+1. Crie sua própria chave Gemini na página **Google AI Studio → API keys**: https://aistudio.google.com/
+2. Confirme que seu projeto possui acesso ao **Free Tier** antes de utilizar. Não ative faturamento pago se não quiser incorrer em custos.
+3. No Render do serviço `cde-imports-social-demo`, entre em **Environment** e configure, **sem mostrar a chave na conversa ou no GitHub**:
+   - `GEMINI_API_KEY`: sua chave privada do Google AI Studio
+   - `ADMIN_PASSWORD`: senha administrativa exclusiva de **pelo menos 16 caracteres** (se já existe, preserve-a)
+   - `GEMINI_MODEL`: opcional; padrão `gemini-3.5-flash-lite`
+   - `AI_PROVIDER`: opcional; deixe vazio ou `gemini` para não usar fornecedor pago
+4. Aguarde a implantação no Render e confira o campo `aiConfigured:true` e `aiProvider:"gemini"` em `https://cde-imports-social-demo.onrender.com/api/health`. A chave **não aparece** nessa resposta.
+5. No [Social Studio](https://trafficmavenads-cyber.github.io/cde-imports-social-studio/#conexoes), clique em **Conexões**, entre com a senha administrativa; no gerador de conteúdo, clique em **Gerar com IA online**.
 
-O frontend acessa somente `POST /api/ai/captions` autenticado por Bearer da sessão administrativa; não recebe o segredo. O servidor valida título, diferenciais, tom, objetivo e redes, limita a **10 solicitações por hora por instância (independentemente de sessões)** em memória e solicita JSON por `https://api.openai.com/v1/responses`, com `store:false`. Não há processamento automático em segundo plano. A integração pode gerar custos de API e requer crédito/limite configurado na conta do provedor. Se não houver chave ou sessão, o gerador local continua ativo.
+A rota autenticada `POST /api/ai/captions` recebe título, diferenciais, tom, objetivo e redes. O backend usa `models.generateContent` com `generationConfig.responseMimeType:application/json` e `systemInstruction` na API REST do Google. Há limite de **10 solicitações por hora por instância** em memória, além dos limites do Google. Se o Gemini retornar HTTP 429, o painel exibirá aviso de cota e o usuário poderá recorrer ao gerador local, que continua independente da API.
 
-A solicitação online encaminha **título e diferenciais do produto, tom, objetivo e redes escolhidas** ao provedor de IA. Não inclua dados pessoais, sigilosos nem senhas nesses campos. As sugestões devem ser revisadas, pois modelos podem errar ou inventar informações. A política de privacidade no site descreve esse fluxo.
+**Privacidade:** no nível gratuito do Gemini, dados enviados podem ser utilizados pelo Google para aprimorar os serviços, conforme as condições vigentes. **Não inclua dados pessoais, senhas, segredos ou informações sigilosas** nos pedidos do gerador. Sempre revise as legendas antes de publicar.
+
+**OpenAI legada (somente opt-in):** o código também aceita `OPENAI_API_KEY`, mas **não a utiliza automaticamente**. Apenas quem configurar expressamente `AI_PROVIDER=openai` ativa esse fornecedor, que pode gerar cobrança. Não configure esse modo se quer custo zero.
 
 ---
 ## Instagram — Login direto de conta profissional (versão 0.10 de teste)
