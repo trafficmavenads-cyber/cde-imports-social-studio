@@ -43,7 +43,7 @@ test('O editor envia JPEG temporário com sessão; Meta pode ler por URL públic
   const head=await fetch(base+publicPath,{method:'HEAD'});
   assert.equal(head.status,200);
   assert.equal(head.headers.get('content-length'),String(JPEG.length));
-  assert.equal((await fetch(base+'/api/instagram/media/not-existing.jpg')).status,404); // unmatched path is protected.
+  assert.equal((await fetch(base+'/api/instagram/media/'+'a'.repeat(48)+'.jpg')).status,404);
   const denied=await fetch(base+'/api/instagram/media/upload',{method:'POST',
    headers:{'Content-Type':'image/jpeg','Origin':'https://attacker.test',...secret},body:JPEG});
   assert.equal(denied.status,403);
