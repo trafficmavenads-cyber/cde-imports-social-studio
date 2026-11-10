@@ -204,3 +204,38 @@ button[hidden],input[hidden],label[hidden]{display:none!important}
 .ig-publish-box .network-draft-buttons{margin:10px 0}
 .ig-publish-box .network-draft-buttons button{flex:1 1 120px}
 .ig-publish-box .ai-tip{margin-bottom:0}
+
+
+/* Instagram studio: bulk media, stories and carousel scheduling */
+#instagram-studio{scroll-margin-top:18px}
+.ig-bulk-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(230px,0.8fr);gap:16px;align-items:start}
+.ig-bulk-form{border:1px solid #cbddef;background:linear-gradient(155deg,#f6fbff,#fff);border-radius:13px;padding:18px;display:grid;gap:11px}
+.ig-bulk-form>label,.ig-story-fields label{font-size:12px;font-weight:750;color:#355575;display:flex;flex-direction:column;gap:6px}
+.ig-bulk-form input[type=file]{padding:11px;background:white;border:1px dashed #9dbbd8;border-radius:8px;width:100%}
+.ig-bulk-form textarea,.ig-bulk-form input[type=text],.ig-bulk-form input[type=url],.ig-bulk-form input[type=datetime-local],.ig-bulk-form select{width:100%;min-width:0}
+.ig-bulk-check{display:flex!important;flex-direction:row!important;gap:9px!important;align-items:flex-start;color:#23598e!important;font-weight:650!important}
+.ig-bulk-check input{width:18px;height:18px;flex-shrink:0}
+.ig-bulk-aside{padding:17px;border:1px solid #d9e6f5;border-radius:13px;background:#f6f9fd}
+.ig-bulk-aside h3,.ig-story-fields h3{font-size:15px;color:#173c74;margin:0 0 12px}
+.ig-bulk-aside p{font-size:12px;line-height:1.65;color:#506b90;margin:8px 0}
+.ig-story-fields{display:grid;gap:12px;border-radius:11px;background:#eff6ff;border:1px solid #bcd5f6;padding:13px}
+.ig-story-fields[hidden]{display:none}
+.ig-selected-files{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:#637e9e}
+.ig-file-card{border:1px solid #d5e5f4;padding:7px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:6px;background:#fff;width:98px;min-width:0}
+.ig-file-card img{width:80px;height:80px;object-fit:cover;border-radius:6px}
+.ig-file-video{display:grid;place-items:center;width:80px;height:80px;background:#e6effe;border-radius:6px;color:#245eae;font-weight:800}
+.ig-file-card small{font-size:10px;text-align:center;overflow-wrap:anywhere}
+.ig-queue-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:17px 0 11px}
+.ig-queue-head h3{font-size:17px;color:#153e70;margin:0}
+.ig-bulk-queue{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ig-job{border:1px solid #d3e2f3;border-radius:12px;padding:14px;background:#fff;min-width:0;display:flex;flex-direction:column;gap:9px}
+.ig-job-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ig-job-header strong{font-size:13px;color:#194277;overflow-wrap:anywhere}
+.ig-job-header .pill{font-size:10px}
+.ig-job-desc{font-size:12px;line-height:1.5;color:#5c718d;margin:0}
+.ig-job-error{font-size:11px;background:#fff3f4;color:#9d2d42;border-radius:7px;padding:8px;margin:0}
+.ig-job-hint{font-size:11px;color:#6b7892;line-height:1.5}
+.ig-job-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto}
+.ig-job-actions button{flex:1 1 100px;font-size:11px;padding:8px 10px}
+@media(max-width:900px){.ig-bulk-layout,.ig-bulk-queue{grid-template-columns:1fr}}
+@media(max-width:550px){.ig-bulk-form{padding:12px}.ig-file-card{width:87px}.ig-file-card img,.ig-file-video{width:72px;height:72px}}
