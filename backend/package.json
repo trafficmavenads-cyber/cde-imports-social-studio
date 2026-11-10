@@ -1,0 +1,14 @@
+{
+  "name": "cde-imports-social-oauth",
+  "version": "0.8.0",
+  "private": true,
+  "description": "Servidor de autorização social para CDE Imports Social Studio",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
