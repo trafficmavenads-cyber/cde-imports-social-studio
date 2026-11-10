@@ -7,7 +7,7 @@ const providers=[
  {id:'youtube',title:'YouTube',icon:'▶',desc:'Conta Google • canal do YouTube'}
 ];
 const $=id=>document.getElementById(id);
-const SERVER_KEY='cde-social-api-base-v1',SESSION_KEY='cde-social-admin-session-v1';
+const SERVER_KEY='cde-social-api-base-v1',SESSION_KEY='cde-social-admin-session-v1',DEMO_URL='https://cde-imports-social-demo.onrender.com';
 let api='',session=sessionStorage.getItem(SESSION_KEY)||'',accounts=[],health=null,busy=false;
 function show(message,error=false){const m=$('api-message');m.textContent=message;m.className='api-message '+(error?'error':'');}
 function parseServer(s){
@@ -37,10 +37,11 @@ function el(tag,cls,text){
  if(text!==undefined)n.textContent=text;return n;
 }
 function render(){
- $('api-login').hidden=Boolean(session);
- $('api-password-wrap').hidden=Boolean(session);
- $('api-logout').hidden=!session;
- $('api-session').textContent=session?'Sessão administrativa ativa neste navegador.':'Entre no servidor para conectar suas contas.';
+ const demo=health?.demoMode===true;
+ $('api-login').hidden=demo||Boolean(session);
+ $('api-password-wrap').hidden=demo||Boolean(session);
+ $('api-logout').hidden=demo||!session;
+ $('api-session').textContent=demo?'Ambiente de demonstração gratuito: não insira senha, token ou dados pessoais.':session?'Sessão administrativa ativa neste navegador.':'Entre no servidor para conectar suas contas.';
 
  const grid=$('account-grid');grid.replaceChildren();
  for(const p of providers){
@@ -54,6 +55,7 @@ function render(){
   const label=el('div','account-status');
   if(!api)label.textContent='Servidor não configurado';
   else if(!health)label.textContent='Servidor não verificado';
+  else if(health?.demoMode)label.textContent='Apenas demonstração: autenticação real indisponível';
   else if(!ready)label.textContent='Aplicativo OAuth não configurado';
   else if(!session)label.textContent='Entre no servidor para ver a conta';
   else if(!connected)label.textContent='Conta não conectada';
@@ -84,8 +86,9 @@ async function check(){
  try{
   status('Verificando...');health=await request('/api/health');
   if(!health.ok)throw Error('Servidor não respondeu corretamente.');
-  status('Servidor online','connected');
-  if(session){
+  status(health.demoMode?'Modo demo • gratuito':'Servidor online',health.demoMode?'amber':'connected');
+  if(health.demoMode){session='';sessionStorage.removeItem(SESSION_KEY);accounts=[];show('✅ Conexão de teste funcionando! Este servidor gratuito não recebe senhas, não autentica redes e não realiza publicações.');}
+  else if(session){
    try{const data=await request('/api/accounts');accounts=data.accounts||[];show('Servidor conectado. Contas verificadas.');}
    catch(e){accounts=[];show(e.message,true);}
   }else{accounts=[];show('Servidor disponível. Entre com a senha administrativa para autorizar contas.');}
@@ -135,8 +138,8 @@ $('api-test').addEventListener('click',check);
 $('api-login').addEventListener('click',login);
 $('api-password').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
 $('api-logout').addEventListener('click',logout);
-const saved=localStorage.getItem(SERVER_KEY)||'';$('api-url').value=saved;
-if(saved){api=parseServer(saved)||'';check();}else{status('Servidor não configurado','amber');render();}
+const saved=localStorage.getItem(SERVER_KEY)||DEMO_URL;$('api-url').value=saved;
+if(saved){api=parseServer(saved)||'';check();}else{api=DEMO_URL;check();}
 const params=new URLSearchParams(location.search);
 if(params.has('oauth_network')){
  const provider=params.get('oauth_network'),result=params.get('oauth_result');
