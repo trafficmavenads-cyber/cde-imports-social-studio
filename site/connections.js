@@ -158,6 +158,20 @@ if(params.has('oauth_network')){
  params.delete('oauth_network');params.delete('oauth_result');
  history.replaceState(null,'',location.pathname+(params.size?'?'+params.toString():'')+location.hash);
 }
+window.CDEInstagramPublisher={
+ status:()=>{
+  const account=accounts.find(x=>x.id==='instagram');
+  const scopes=String(account?.scopes||'').split(/[,\\s]+/);
+  return {configured:Boolean(health?.providerConfigured?.instagram),
+   authenticated:Boolean(session),connected:Boolean(account?.connected),
+   ready:Boolean(session&&account?.connected&&account.status==='connected'&&scopes.includes('instagram_business_content_publish')),
+   label:account?.label||null,scopes:account?.scopes||'',requestedScopes:health?.instagramScopes||''};
+ },
+ prepare:async ({kind,mediaUrl,caption})=>request('/api/instagram/publish/prepare',{method:'POST',body:JSON.stringify({kind,mediaUrl,caption})}),
+ checkStatus:async jobId=>request('/api/instagram/publish/status',{method:'POST',body:JSON.stringify({jobId})}),
+ confirm:async jobId=>request('/api/instagram/publish/confirm',{method:'POST',body:JSON.stringify({jobId,confirm:true})}),
+ refreshAccounts:async ()=>{if(!session)return null;const data=await request('/api/accounts');accounts=data.accounts||[];render();return data;}
+};
 window.CDEAIBackend={
  status:()=>({configured:Boolean(health?.aiConfigured),loggedIn:Boolean(session),available:Boolean(health?.aiConfigured&&session),provider:health?.aiProvider||null}),
  generate:async input=>{
