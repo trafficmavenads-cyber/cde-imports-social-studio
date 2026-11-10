@@ -1,3 +1,19 @@
+## Publicação Instagram com confirmação no painel (Feed + Reels)
+
+A partir da versão 0.13, o Social Studio implementa um fluxo de **publicação real sob confirmação** pela Instagram API with Instagram Login:
+
+1. Meta for Developers: cadastrar produto Instagram API with Instagram Login e obter **Instagram App ID** e **Instagram App Secret**. Configurar o redirect `https://cde-imports-social-demo.onrender.com/api/oauth/callback/instagram`. Solicitar acesso a `instagram_business_basic` e `instagram_business_content_publish`. No modo desenvolvimento, use um perfil profissional autorizado a testar; outras contas podem exigir Advanced Access/revisão pela Meta.
+2. Render → Environment: `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET` e `ADMIN_PASSWORD` (já existente, caso configurada) **exclusivamente no servidor**. A versão da Graph API pode ser configurada em `INSTAGRAM_GRAPH_VERSION` (padrão `v26.0`). Não publicar segredos em arquivos ou conversas.
+3. Entrar em **Conexões → Conectar/Re conectar Instagram** e conceder as duas permissões. O backend armazena a lista `permissions` efetivamente concedida pela Meta e bloqueia publicação se `instagram_business_content_publish` não constar nela.
+4. No gerador Gemini, selecione **Instagram Feed** ou **Instagram Reels**. Em **Posts por rede**, revise a legenda e forneça uma URL HTTPS **direta e pública** de arquivo JPEG (Feed) ou vídeo (Reels). Links de página de produto, links restritos e arquivos locais sem hospedagem pública não podem ser usados. A Meta precisa conseguir obter o arquivo.
+5. Clique **Preparar na Meta** (cria container), depois **Verificar mídia** até status `FINISHED`. Clique **Publicar agora** e confirme explicitamente no navegador. Só a resposta da API `POST /{IG_ID}/media_publish` com ID indica sucesso. Se a confirmação falhar, o app bloqueia reenvio automático para evitar publicações duplicadas. O registro confirmado aparece nos KPIs de posts publicados.
+6. O Render Free guarda tokens e jobs somente na **memória** e pode perdê-los ao reiniciar/suspender. A publicação é imediata e requer navegador aberto. **Não existe publicação agendada/desassistida no Instagram nesta versão**.
+
+Rotas protegidas por senha e sessão: `POST /api/instagram/publish/prepare`, `POST /api/instagram/publish/status` e `POST /api/instagram/publish/confirm`. O servidor aplica validação de escopo, sessão, token, URL pública, limites de texto, estado e idempotência temporária. Fotos JPEG e Reels estão incluídos; **Stories, carrosséis, uploads locais automáticos e programação remota** precisam de implementação específica.
+
+Docs Meta: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/content-publishing
+
+---
 ## Roteamento automático de legendas para posts por rede
 
 A seção **Posts por rede social** em `site/drafts.js` recebe as legendas geradas pelo Gemini ou pelo gerador local por meio de `CDEDraftRouter.sync`. Cada destino selecionado tem seu próprio rascunho local, mantido em `localStorage` (`cde-imports-network-drafts-v1`). Ao escolher outra versão em `site/ai.js`, o rascunho correspondente é atualizado sem sobrescrever as outras redes. O usuário pode editar o texto, copiar e agendar um post pela interface. Após agendamento pelo fluxo da campanha, o post é identificado como **no calendário interno**; não é marcado como publicado.
