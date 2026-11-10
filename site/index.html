@@ -32,6 +32,14 @@ Qualidade, variedade e condições especiais. Confira os detalhes e garanta o se
  <div id="api-message" class="api-message" role="status" aria-live="polite">Após configurar o servidor, escolha a rede e autorize o acesso na página oficial.</div>
 </div>
 <div class="connection-setup-head"><strong><span class="step-number">3</span> Contas e permissões</strong><small>Cada rede confirma a autorização separadamente. Nenhuma senha da rede social é solicitada por este site.</small></div>
+<div class="tiktok-config-guide">
+ <div class="tiktok-guide-title"><strong>♪ TikTok — conexão oficial (teste gratuito)</strong><span id="tiktok-config-status">Aguardando credenciais do aplicativo</span></div>
+ <p>O código já está integrado. Para habilitar o Login Kit, registre no TikTok Developers esta <strong>Redirect URI</strong>:</p>
+ <div class="tiktok-callback"><code id="tiktok-callback-url">https://cde-imports-social-demo.onrender.com/api/oauth/callback/tiktok</code><button type="button" class="secondary" id="copy-tiktok-callback">Copiar URL</button></div>
+ <p>No <a href="https://dashboard.render.com/web/srv-dbpkmi56e07s73d9fci0" target="_blank" rel="noopener">Render → Environment</a>, cadastre <code>TIKTOK_CLIENT_ID</code> (Client Key), <code>TIKTOK_CLIENT_SECRET</code> e uma <code>ADMIN_PASSWORD</code> nova, com pelo menos 16 caracteres. <strong>Nunca coloque esses valores no GitHub nem neste chat.</strong></p>
+ <p>Permissão inicial: <code>user.info.basic</code>. O botão de conexão só será habilitado depois que o Render reconhecer as três variáveis. O Render Free não guarda o login permanentemente; este ambiente é exclusivamente para testes.</p>
+ <div class="tiktok-guide-actions"><a href="https://developers.tiktok.com/apps/" target="_blank" rel="noopener" class="secondary">Abrir TikTok Developers ↗</a><a href="https://dashboard.render.com/web/srv-dbpkmi56e07s73d9fci0" target="_blank" rel="noopener" class="secondary">Configurar credenciais no Render ↗</a></div>
+</div>
 <div id="account-grid" class="connection-grid" aria-live="polite"></div>
 <div class="notice">Para habilitar os botões, precisamos de um backend HTTPS e das credenciais OAuth de aplicativos registrados em cada rede. <strong>Não envie senhas, tokens ou segredos nesta conversa nem no repositório GitHub público.</strong> O código do backend está na pasta <code>backend/</code> do repositório. WhatsApp Grupo e Status continuam com compartilhamento assistido.</div>
 </section>
