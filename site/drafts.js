@@ -73,7 +73,7 @@ function render(){
     '</article>').join('')+'</section>';
  }).join('');
 }
-function sync({groupId,title,captions,checkout}){
+function sync({groupId,title,captions,checkout,mediaUrl}){
  if(typeof title!=='string'||!title.trim()||!captions||typeof captions!=='object')return null;
  const input=Object.entries(captions)
   .filter(([network,text])=>CHANNELS[network]&&typeof text==='string'&&text.trim())
@@ -87,9 +87,10 @@ function sync({groupId,title,captions,checkout}){
  const currentDate=new Date().toISOString();
  for(const row of input){
   const record=records.find(x=>x.groupId===id&&x.channel===row.channel);
-  if(record&&!record.scheduled){record.caption=row.caption;record.title=title.trim();record.checkout=checkout||'';record.updated=currentDate;}
+  const defaultImageUrl=row.channel==='instagram-feed'&&typeof mediaUrl==='string'&&/^https:\/\//i.test(mediaUrl)?mediaUrl.slice(0,1800):'';
+  if(record&&!record.scheduled){record.caption=row.caption;record.title=title.trim();record.checkout=checkout||'';if(!record.igMediaUrl&&defaultImageUrl)record.igMediaUrl=defaultImageUrl;record.updated=currentDate;}
   else records.push({id:newId(),groupId:id,title:title.trim().slice(0,110),channel:row.channel,
-   caption:row.caption,checkout:checkout||'',scheduled:false,created:currentDate,updated:currentDate});
+   caption:row.caption,checkout:checkout||'',igMediaUrl:defaultImageUrl,scheduled:false,created:currentDate,updated:currentDate});
  }
  records=records.slice(-100);activeGroup=id;persist();render();return id;
 }
