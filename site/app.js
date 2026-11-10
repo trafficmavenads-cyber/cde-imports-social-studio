@@ -47,6 +47,19 @@ byId('jobs').addEventListener('click',async e=>{const btn=e.target.closest('butt
 byId('insights-list').addEventListener('click',e=>{const btn=e.target.closest('button[data-act=metrics]');if(!btn)return;const form=btn.closest('.insight'),item=items.find(x=>x.id===form?.dataset.id);if(!item)return;form.querySelectorAll('[data-metric]').forEach(f=>item[f.dataset.metric]=f.value===''?null:Math.max(0,Math.floor(Number(f.value)||0)));save();render();toast('Métricas informadas manualmente e salvas.');});
 byId('prev-month').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()-1);calendar();});byId('next-month').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()+1);calendar();});
 byId('export-json').addEventListener('click',()=>downloadBlob(new Blob([JSON.stringify({app:'CDE Social Studio Web',version:1,exportedAt:new Date().toISOString(),items},null,2)],{type:'application/json'}),'cde-imports-campanhas-backup.json'));
-window.CDESocialData={getItems:()=>items.map(x=>({...x}))};
+function markInstagramPublished({title,channel,caption,mediaId}){
+ if(typeof mediaId!=='string'||!/^\d+$/.test(mediaId)||!['instagram-feed','instagram-reels'].includes(channel))return;
+ if(items.some(x=>x.igMediaId===mediaId))return;
+ const matching=items.find(x=>x.status==='planned'&&x.channel===channel&&x.title===title&&x.caption===caption);
+ if(matching){matching.status='published';matching.externalPublished=true;matching.igMediaId=mediaId;matching.publishedAt=new Date().toISOString();}
+ else{
+  const id='ig-'+mediaId;
+  items.push({id,campaignId:id,title:String(title||'Post Instagram').slice(0,110),channel,caption:String(caption||''),
+   when:new Date().toISOString(),checkout:'',status:'published',externalPublished:true,igMediaId:mediaId,
+   views:null,likes:null,comments:null,shares:null,created:new Date().toISOString(),publishedAt:new Date().toISOString()});
+ }
+ items=items.slice(-500);save();render();
+}
+window.CDESocialData={getItems:()=>items.map(x=>({...x})),markInstagramPublished};
 draw();render();
 })();
