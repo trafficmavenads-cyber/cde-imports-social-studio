@@ -199,6 +199,7 @@ async function handler(req,res){
  if(!session)return reply(req,res,401,{error:'Sessão administrativa expirada. Entre novamente.'});
  if(req.method==='GET'&&url==='/api/accounts')return reply(req,res,200,{accounts:accountRows(session),temporaryStorage:true});
  if(req.method==='POST'&&url==='/api/oauth/start/tiktok'){
+  if(!enabled)return reply(req,res,409,{error:'Configure TIKTOK_CLIENT_ID e TIKTOK_CLIENT_SECRET no servidor.'});
   if(states.size>100)return reply(req,res,429,{error:'Muitas autorizações pendentes.'});
   const state=fresh();states.set(state,{provider:'tiktok',session,expires:Date.now()+OAUTH_MS});
   const u=new URL('https://www.tiktok.com/v2/auth/authorize/');
