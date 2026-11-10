@@ -191,11 +191,15 @@ async function handler(req,res){
   if(!tx||tx.provider!=='instagram'||tx.expires<=Date.now()||!sessions.has(tx.session))return redirect(res,'invalid_state','instagram');
   if(path.searchParams.has('error')||!path.searchParams.get('code'))return redirect(res,'denied','instagram');
   try{
-   const short=await instagramJson('https://api.instagram.com/oauth/access_token',{
+   const tokenResponse=await instagramJson('https://api.instagram.com/oauth/access_token',{
     method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams({client_id:INSTAGRAM_CLIENT_ID,client_secret:INSTAGRAM_CLIENT_SECRET,grant_type:'authorization_code',redirect_uri:instagramCallback,code:path.searchParams.get('code')})
    });
-   if(!short.access_token)throw Error('Token do Instagram ausente');
+   // Meta responses have appeared both as top-level fields and as data:[{...}].
+   // Reject ambiguous multi-entry payloads rather than trusting the wrong account.
+   const short=tokenResponse?.access_token?tokenResponse:
+    Array.isArray(tokenResponse?.data)&&tokenResponse.data.length===1?tokenResponse.data[0]:null;
+   if(!short||typeof short.access_token!=='string'||!short.access_token)throw Error('Token do Instagram ausente');
    let token=short.access_token,tokenLifetime=Math.max(1,Number(short.expires_in)||3600);
    // Exchange the one-hour Instagram token for an optional 60-day token.
    // Failure does not invent a successful authorization; the verified short token can still work.
