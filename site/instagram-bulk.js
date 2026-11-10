@@ -102,7 +102,7 @@ function refresh(){
   if(item.mediaId){const ref=document.createElement('small');ref.textContent='ID confirmado pela Meta: '+item.mediaId;card.append(ref);}
   if(item.kind.startsWith('STORY_')){
    const info=document.createElement('small');info.className='ig-job-hint';
-   info.textContent='Stickers de link e músicas do Instagram não são enviados pela API; adicione-os pelo app móvel.';card.append(info);
+   info.textContent='Para links clicáveis ou música do catálogo, BAIXE e publique o arquivo pelo Instagram do celular após adicionar os stickers. A API só publica mídia básica.';card.append(info);
   }
   const actions=document.createElement('div');actions.className='ig-job-actions';
   function act(label,action,disabled){
@@ -111,6 +111,7 @@ function refresh(){
   }
   act('Publicar agora','publish',item.status==='published'||item.status==='running'||busy.has(item.id));
   act('Editar legenda','edit',item.status==='published'||item.status==='running');
+  if(item.kind.startsWith('STORY_'))act('Baixar Story para editar no Instagram','download-story',false);
   if(item.kind.startsWith('STORY_')&&item.storyLink)act('Copiar link para sticker manual','copylink',false);
   act('Excluir','delete',item.status==='running'||busy.has(item.id));
   card.append(actions);root.append(card);
@@ -285,6 +286,21 @@ $('ig-bulk-queue').addEventListener('click',async event=>{
   if(item.status==='published'&&!window.confirm('O post já foi publicado no Instagram. Isto remove apenas o registro local. Continuar?'))return;
   queue=queue.filter(x=>x.id!==item.id);save();refresh();
   for(const meta of item.items)if(!queue.some(x=>x.items.some(y=>y.key===meta.key)))try{await delFile(meta.key);}catch{}
+  return;
+ }
+ if(button.dataset.action==='download-story'){
+  try{
+   const file=await getFile(item.items[0].key);
+   if(!file)throw Error('Mídia não encontrada neste navegador.');
+   const blob=file.type.startsWith('image/')?
+    await imageToJpeg(file,'STORY_IMAGE',item.storyText||'',item.storyCta||''):file;
+   const url=URL.createObjectURL(blob);
+   const anchor=document.createElement('a');anchor.href=url;
+   anchor.download='CDE-Imports-Story-'+item.id.slice(0,8)+(blob.type==='video/mp4'?'.mp4':'.jpg');
+   document.body.append(anchor);anchor.click();anchor.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),60000);
+   notice('Story salvo no dispositivo. Abra o Instagram, carregue este arquivo e ADICIONE o sticker de link e a música ANTES de publicar no celular.');
+  }catch(error){notice('Não foi possível baixar: '+String(error.message||error),true);}
   return;
  }
  if(button.dataset.action==='copylink'){
