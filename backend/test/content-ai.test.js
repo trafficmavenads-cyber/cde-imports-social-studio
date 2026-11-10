@@ -35,7 +35,7 @@ test('sem chave de IA mantém modo gratuito sem expor endpoint público',async()
 test('IA configurada exige senha e valida textos antes de fazer chamada externa',async()=>{
  const password='SenhaTesteLocalArtificial2026!';
  const key='sk-test-falso-nao-enviar-para-api';
- const {child,base}=await start(18966,{ADMIN_PASSWORD:password,OPENAI_API_KEY:key});
+ const {child,base}=await start(18966,{ADMIN_PASSWORD:password,OPENAI_API_KEY:key,AI_PROVIDER:'openai'});
  try{
   const health=await call(base,'/api/health');
   assert.equal(health.status,200);
