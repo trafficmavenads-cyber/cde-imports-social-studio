@@ -161,7 +161,7 @@ if(params.has('oauth_network')){
 window.CDEInstagramPublisher={
  status:()=>{
   const account=accounts.find(x=>x.id==='instagram');
-  const scopes=String(account?.scopes||'').split(/[,\\s]+/);
+  const scopes=String(account?.scopes||'').split(/[,\s]+/);
   return {configured:Boolean(health?.providerConfigured?.instagram),
    authenticated:Boolean(session),connected:Boolean(account?.connected),
    ready:Boolean(session&&account?.connected&&account.status==='connected'&&scopes.includes('instagram_business_content_publish')),
