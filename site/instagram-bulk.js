@@ -201,6 +201,7 @@ async function addToQueue(){
  if(!Number.isFinite(intervalHours)||intervalHours<0||intervalHours>720)return notice('O intervalo deve estar entre 0 e 720 horas.',true);
  const fail=possible(format,allMedia);if(fail)return notice(fail,true);
  if(queue.length+allMedia.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
+ if(format==='STORIES'&&$('ig-story-link').value.trim()&&auto)return notice('Stories com sticker de link precisam ser finalizados manualmente no aplicativo do Instagram. Desmarque o envio automático.',true);
  if(auto&&!when)return notice('Escolha data e hora antes de autorizar a publicação automática.',true);
  if(auto&&new Date(when).getTime()<=Date.now())return notice('O horário automático deve estar no futuro.',true);
  if(when&&Number.isNaN(new Date(when).getTime()))return notice('Informe uma data válida.',true);
@@ -226,6 +227,7 @@ async function addToQueue(){
 function delay(ms){return new Promise(r=>setTimeout(r,ms));}
 async function publish(item,{automatic=false}={}){
  if(busy.has(item.id)||item.status==='published')return;
+ if(item.kind.startsWith('STORY_')&&item.storyLink){notice('Este Story possui um link para sticker manual. Baixe o Story e publique pelo Instagram do celular para adicionar o link clicável.',true);return;}
  const ig=window.CDEInstagramPublisher;
  if(!ig?.status?.().ready){
   item.status='attention';item.error='Conecte e autorize o Instagram na seção Conexões. Nenhum post enviado.';save();refresh();return;
