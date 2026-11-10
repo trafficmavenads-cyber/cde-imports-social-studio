@@ -20,6 +20,16 @@ function parseServer(s){
   return u.origin;
  }catch{return null;}
 }
+function isAllowedAuthDestination(provider,uri){
+ const rules={
+  instagram:[['www.facebook.com','/dialog/oauth'],['www.instagram.com','/oauth/authorize']],
+  tiktok:[['www.tiktok.com','/v2/auth/authorize/']],
+  pinterest:[['www.pinterest.com','/oauth/']],
+  youtube:[['accounts.google.com','/o/oauth2/v2/auth']]
+ };
+ return uri instanceof URL && uri.protocol==='https:'&&!uri.username&&!uri.password&&!uri.port&&
+  (rules[provider]||[]).some(([host,path])=>uri.hostname===host&&uri.pathname===path);
+}
 function status(text,type='muted'){$('api-health').textContent=text;$('api-health').className='pill '+type;}
 function setBusy(flag){busy=flag;for(const id of ['api-save','api-test','api-login','api-logout'])$(id).disabled=flag;render();}
 async function request(path,options={}){
@@ -125,9 +135,7 @@ async function startOAuth(id){
  try{
   const r=await request('/api/oauth/start/'+encodeURIComponent(id),{method:'POST'});
   const u=new URL(r.authorizationUrl);
-  const allowed={instagram:[['www.facebook.com','/dialog/oauth'],['www.instagram.com','/oauth/authorize']],tiktok:[['www.tiktok.com','/v2/auth/authorize/']]};
-  const routes=allowed[id]||[];
-  if(u.protocol!=='https:'||u.username||u.password||u.port||!routes.some(([host,prefix])=>u.hostname===host&&u.pathname===prefix))throw Error('A rede social devolveu um destino inválido.');
+  if(!isAllowedAuthDestination(id,u))throw Error('A rede social devolveu um destino inválido.');
   window.location.assign(u.href);
  }catch(e){show(e.message,true);setBusy(false);}
 }
