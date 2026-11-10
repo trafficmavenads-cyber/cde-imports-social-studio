@@ -85,7 +85,7 @@ function apply(result,d){
  for(const row of result.suggestions){state.variants.set(row.channel,row.variants);state.chosen.set(row.channel,0);}
  state.tags=result.hashtags;state.ideas=result.ideas;state.mode=result.mode;state.signature=signature(d);
  const captions=Object.fromEntries([...state.variants].map(([network,versions])=>[network,versions[0]]));
- state.draftGroupId=window.CDEDraftRouter?.sync?.({groupId:state.draftGroupId,title:d.title,captions,checkout:$('checkout').value.trim()})||null;
+ state.draftGroupId=window.CDEDraftRouter?.sync?.({groupId:state.draftGroupId,title:d.title,captions,checkout:$('checkout').value.trim(),mediaUrl:$('image-url').value.trim()})||null;
  render();
 }
 async function copy(text){
