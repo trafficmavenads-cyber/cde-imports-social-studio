@@ -18,7 +18,7 @@ const HEADS={
 };
 const QUESTIONS={vender:'O que você procura em um produto assim?',engajar:'Você usaria ou presentearia alguém?',apresentar:'Quer saber mais sobre esse produto?'};
 const STOP=new Set('a o as os ao aos de da do das dos e em um uma uns umas para por com sem que na no nas nos seu sua seus suas esse essa este esta mais sobre produto original loja cde imports'.split(' '));
-const state={variants:new Map(),chosen:new Map(),tags:[],ideas:[],mode:'local',generating:false,signature:''};
+const state={variants:new Map(),chosen:new Map(),tags:[],ideas:[],mode:'local',generating:false,signature:'',draftGroupId:null};
 function el(tag,cls,text){
  const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;
 }
@@ -83,7 +83,10 @@ function normalize(result,d,mode){
 function apply(result,d){
  state.variants.clear();state.chosen.clear();
  for(const row of result.suggestions){state.variants.set(row.channel,row.variants);state.chosen.set(row.channel,0);}
- state.tags=result.hashtags;state.ideas=result.ideas;state.mode=result.mode;state.signature=signature(d);render();
+ state.tags=result.hashtags;state.ideas=result.ideas;state.mode=result.mode;state.signature=signature(d);
+ const captions=Object.fromEntries([...state.variants].map(([network,versions])=>[network,versions[0]]));
+ state.draftGroupId=window.CDEDraftRouter?.sync?.({groupId:state.draftGroupId,title:d.title,captions,checkout:$('checkout').value.trim()})||null;
+ render();
 }
 async function copy(text){
  try{await navigator.clipboard.writeText(text);status('Texto copiado para a área de transferência!');}
@@ -104,7 +107,7 @@ function renderCaptions(){
    block.append(heading,el('p','ai-copy-text',text));
    const buttons=el('div','ai-variant-actions');
    buttons.append(button(chosen?'✓ Usando nesta rede':'Usar nesta rede',()=>{
-    state.chosen.set(id,index);renderCaptions();status('Versão '+(index+1)+' selecionada para '+NETWORKS[id][0]+'.');
+    state.chosen.set(id,index);renderCaptions();if(state.draftGroupId)window.CDEDraftRouter?.patch?.(state.draftGroupId,id,text);status('Versão '+(index+1)+' inserida automaticamente no post de '+NETWORKS[id][0]+'.');
    },chosen?'primary':'secondary'));
    buttons.append(button('Copiar',()=>copy(text)));
    buttons.append(button('Editar no texto principal',()=>{
@@ -148,7 +151,7 @@ function valid(d){
 $('ai-local').addEventListener('click',()=>{
  const d=formData();if(!valid(d))return;
  apply(normalize(localGenerate(d),d,'local'),d);
- status('Pronto! Duas legendas por rede, hashtags e ideias. Escolha a versão e salve a campanha.');
+ status('Legendas adicionadas automaticamente aos posts de cada rede. Veja em “Posts por rede” para editar ou agendar.');
 });
 $('ai-online').addEventListener('click',async()=>{
  const d=formData();if(!valid(d))return;
@@ -157,7 +160,7 @@ $('ai-online').addEventListener('click',async()=>{
  try{
   const r=await window.CDEAIBackend.generate(d);
   apply(normalize(r,d,'online'),d);
-  status('IA online concluiu. Revise as informações e escolha as legendas por rede.');
+  status('Gemini concluiu: cada legenda já está no rascunho da rede correspondente. Abra “Posts por rede” para revisar ou agendar.');
  }catch(e){status('Não foi possível gerar com IA online: '+(e.message||'erro')+'. Use as sugestões locais.',true);}
  finally{busy(false);}
 });
