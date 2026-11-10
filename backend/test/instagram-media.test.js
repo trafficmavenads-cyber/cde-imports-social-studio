@@ -40,6 +40,21 @@ test('O editor envia JPEG temporário com sessão; Meta pode ler por URL públic
   assert.equal(grabbed.status,200);
   assert.equal(grabbed.headers.get('content-type'),'image/jpeg');
   assert.deepEqual(Buffer.from(await grabbed.arrayBuffer()),JPEG);
+  const videoBytes=Buffer.from([0x00,0x00,0x00,0x1c,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0x00,0x00,0x00,0x00]);
+  const stagedVideo=await fetch(base+'/api/instagram/media/upload',{
+   method:'POST',headers:{'Content-Type':'video/mp4',...secret},body:videoBytes
+  });
+  assert.equal(stagedVideo.status,201);
+  const videoData=await stagedVideo.json();
+  assert.match(videoData.mediaUrl,/\.mp4$/);
+  const videoPublic=await fetch(base+new URL(videoData.mediaUrl).pathname);
+  assert.equal(videoPublic.status,200);
+  assert.equal(videoPublic.headers.get('content-type'),'video/mp4');
+  assert.deepEqual(Buffer.from(await videoPublic.arrayBuffer()),videoBytes);
+  const wrongVideo=await fetch(base+'/api/instagram/media/upload',{
+   method:'POST',headers:{'Content-Type':'video/mp4',...secret},body:JPEG
+  });
+  assert.equal(wrongVideo.status,400);
   const head=await fetch(base+publicPath,{method:'HEAD'});
   assert.equal(head.status,200);
   assert.equal(head.headers.get('content-length'),String(JPEG.length));
