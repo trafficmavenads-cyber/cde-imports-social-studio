@@ -1,3 +1,22 @@
+## Assistente de conteúdo — legendas, hashtags e insights
+
+O painel possui gerador **local e gratuito** de 2 versões de legenda para cada rede selecionada, sugestões de hashtags e ideias de pauta. Não é um modelo generativo: funciona com regras e texto do produto. As versões escolhidas por rede são salvas individualmente nas campanhas do navegador; se o usuário alterar o título, diferenciais, objetivo, tom ou redes depois de gerar, deverá gerar novamente. O botão de usar no texto principal só altera o editor principal, não a seleção individual de cada rede.
+
+O painel **Insights de performance** calcula taxas e rankings apenas quando há registros manuais de visualizações, curtidas, comentários e compartilhamentos em publicações. Não consulta APIs sociais nem garante resultados. A taxa é (curtidas + comentários + compartilhamentos) / visualizações; pode exceder 100% em casos de múltiplas interações.
+
+### IA generativa opcional (OpenAI API)
+
+Para ativar **Gerar com IA online**, configure **privadamente** em Render → Environment:
+
+- `OPENAI_API_KEY`: chave da OpenAI API (não colocar no GitHub, browser ou chat).
+- `ADMIN_PASSWORD`: senha administrativa com pelo menos 16 caracteres, usada também nas conexões OAuth, se ainda não estiver cadastrada.
+- `OPENAI_MODEL`: opcional, padrão `gpt-4.1-mini`.
+
+O frontend acessa somente `POST /api/ai/captions` autenticado por Bearer da sessão administrativa; não recebe o segredo. O servidor valida título, diferenciais, tom, objetivo e redes, limita a **10 solicitações por hora por sessão** em memória e solicita JSON por `https://api.openai.com/v1/responses`, com `store:false`. Não há processamento automático em segundo plano. A integração pode gerar custos de API e requer crédito/limite configurado na conta do provedor. Se não houver chave ou sessão, o gerador local continua ativo.
+
+A solicitação online encaminha **título e diferenciais do produto, tom, objetivo e redes escolhidas** ao provedor de IA. Não inclua dados pessoais, sigilosos nem senhas nesses campos. As sugestões devem ser revisadas, pois modelos podem errar ou inventar informações. A política de privacidade no site descreve esse fluxo.
+
+---
 ## Instagram — Login direto de conta profissional (versão 0.10 de teste)
 
 A mesma instância **Render Free** aceita testes de Login Kit do TikTok e **Instagram API with Instagram Login**, de forma independente, com tokens somente em memória. A conexão do Instagram não depende da aprovação do TikTok.
