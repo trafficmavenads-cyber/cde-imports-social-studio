@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: cde-imports-social-oauth
+    runtime: node
+    rootDir: backend
+    plan: starter
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SITE_URL
+        value: https://trafficmavenads-cyber.github.io/cde-imports-social-studio/
+      - key: BACKEND_URL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: DATA_DIR
+        value: /var/data
+      - key: INSTAGRAM_CLIENT_ID
+        sync: false
+      - key: INSTAGRAM_CLIENT_SECRET
+        sync: false
+      - key: TIKTOK_CLIENT_ID
+        sync: false
+      - key: TIKTOK_CLIENT_SECRET
+        sync: false
+      - key: PINTEREST_CLIENT_ID
+        sync: false
+      - key: PINTEREST_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+    disk:
+      name: social-vault
+      mountPath: /var/data
+      sizeGB: 1
