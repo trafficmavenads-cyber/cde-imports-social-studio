@@ -114,6 +114,7 @@ function refresh(){
   if(item.status==='attention'&&item.error){const error=document.createElement('p');error.className='ig-job-error';error.textContent=item.error;card.append(error);}
   if(item.mediaId){const ref=document.createElement('small');ref.textContent='ID confirmado pela Meta: '+item.mediaId;card.append(ref);}
   if(item.kind.startsWith('STORY_')){
+   if(item.storyMusic){const music=document.createElement('small');music.className='ig-job-hint';music.textContent='Música para adicionar no celular: '+item.storyMusic;card.append(music);}
    const info=document.createElement('small');info.className='ig-job-hint';
    info.textContent='Para links clicáveis ou música do catálogo, BAIXE e publique o arquivo pelo Instagram do celular após adicionar os stickers. A API só publica mídia básica.';card.append(info);
   }
@@ -175,7 +176,7 @@ function imageToJpeg(file,kind,text,cta){
   reader.readAsDataURL(file);
  });
 }
-function buildItems(files,kind,caption,when,auto,text,cta,link,intervalHours){
+function buildItems(files,kind,caption,when,auto,text,cta,link,music,intervalHours){
  const made=[],schedule=when?new Date(when).toISOString():null;
  if(kind==='CAROUSEL'){
   made.push({id:id(),title:'Carrossel · '+files.length+' mídias',kind,caption,when:schedule,auto,
@@ -185,7 +186,7 @@ function buildItems(files,kind,caption,when,auto,text,cta,link,intervalHours){
   const targetKind=kindFrom(kind,value.file);
   const itemTime=schedule?new Date(new Date(schedule).getTime()+index*intervalHours*3600000).toISOString():null;
   made.push({id:id(),title:clean(value.file.name),kind:targetKind,caption,when:itemTime,auto,
-   storyText:text,storyCta:cta,storyLink:link,
+   storyText:text,storyCta:cta,storyLink:link,storyMusic:music,
    status:schedule?'scheduled':'draft',items:[{key:value.key||null,name:value.file.name,mediaType:value.file.type,mediaUrl:value.mediaUrl||null}],
    created:new Date().toISOString()});
  }
@@ -201,13 +202,13 @@ async function addToQueue(){
  if(!Number.isFinite(intervalHours)||intervalHours<0||intervalHours>720)return notice('O intervalo deve estar entre 0 e 720 horas.',true);
  const fail=possible(format,allMedia);if(fail)return notice(fail,true);
  if(queue.length+allMedia.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
- if(format==='STORIES'&&$('ig-story-link').value.trim()&&auto)return notice('Stories com sticker de link precisam ser finalizados manualmente no aplicativo do Instagram. Desmarque o envio automático.',true);
+ if(format==='STORIES'&&($('ig-story-link').value.trim()||$('ig-story-music-name').value.trim())&&auto)return notice('Stories com link ou música da biblioteca precisam ser finalizados no aplicativo Instagram. Desmarque envio automático.',true);
  if(auto&&!when)return notice('Escolha data e hora antes de autorizar a publicação automática.',true);
  if(auto&&new Date(when).getTime()<=Date.now())return notice('O horário automático deve estar no futuro.',true);
  if(when&&Number.isNaN(new Date(when).getTime()))return notice('Informe uma data válida.',true);
  if(auto&&!window.confirm('Você autoriza o envio automático destes posts para o Instagram quando chegar o horário, SOMENTE com esta página aberta e sua sessão ativa?'))return;
  const caption=$('ig-bulk-caption').value.trim().slice(0,2200),text=$('ig-story-text').value.trim().slice(0,130);
- const cta=$('ig-story-cta').value.trim().slice(0,85),link=$('ig-story-link').value.trim().slice(0,1800);
+ const cta=$('ig-story-cta').value.trim().slice(0,85),link=$('ig-story-link').value.trim().slice(0,1800),music=$('ig-story-music-name').value.trim().slice(0,100);
  if(format!=='STORIES'&&!caption)return notice('Informe uma legenda. Para Stories, o texto pode ser incorporado na imagem.',true);
  if(format==='STORIES'&&selected.length&&selected.some(x=>x.type==='video/mp4')&&(text||cta))
   notice('A sobreposição de texto se aplica somente às imagens; vídeo precisa ser editado antes do upload.');
@@ -218,7 +219,7 @@ async function addToQueue(){
    const key=id();await putFile(key,file);refs.push({file,key});
   }
   refs.push(...remotes);
-  const entries=buildItems(refs,format,caption,when,auto,text,cta,link,intervalHours);
+  const entries=buildItems(refs,format,caption,when,auto,text,cta,link,music,intervalHours);
   queue.push(...entries);save();selected=[];$('ig-bulk-files').value='';$('ig-bulk-urls').value='';preview();refresh();
   notice(entries.length+' publicação(ões) adicionada(s). Arquivos guardados somente neste navegador.');
  }catch(e){notice('Falha ao armazenar os arquivos: '+String(e.message||e),true);}
@@ -227,7 +228,7 @@ async function addToQueue(){
 function delay(ms){return new Promise(r=>setTimeout(r,ms));}
 async function publish(item,{automatic=false}={}){
  if(busy.has(item.id)||item.status==='published')return;
- if(item.kind.startsWith('STORY_')&&item.storyLink){notice('Este Story possui um link para sticker manual. Baixe o Story e publique pelo Instagram do celular para adicionar o link clicável.',true);return;}
+ if(item.kind.startsWith('STORY_')&&(item.storyLink||item.storyMusic)){notice('Este Story usa link ou música do Instagram. Baixe o arquivo e publique pelo aplicativo do celular para incluir os elementos.',true);return;}
  const ig=window.CDEInstagramPublisher;
  if(!ig?.status?.().ready){
   item.status='attention';item.error='Conecte e autorize o Instagram na seção Conexões. Nenhum post enviado.';save();refresh();return;
