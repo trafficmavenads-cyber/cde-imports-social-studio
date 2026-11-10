@@ -152,7 +152,7 @@ function imageToJpeg(file,kind,text,cta){
      grad.addColorStop(0,'rgba(0,0,0,0)');grad.addColorStop(1,'rgba(0,0,0,.88)');
      ctx.fillStyle=grad;ctx.fillRect(0,targetH*.52,targetW,targetH*.48);
      ctx.textAlign='center';ctx.fillStyle='white';ctx.font='bold 64px Arial, sans-serif';
-     const splitLine=(value,y,color)=>{
+     const splitLine=(value,y,color,maxLines)=>{
       if(!value)return y;
       ctx.fillStyle=color;const words=value.replace(/\s+/g,' ').trim().split(' ');let line='',lines=[];
       for(const word of words){
@@ -160,13 +160,13 @@ function imageToJpeg(file,kind,text,cta){
        if(ctx.measureText(test).width>900&&line){lines.push(line);line=word;}else line=test;
       }
       if(line)lines.push(line);
-      lines.slice(0,4).forEach(t=>{ctx.fillText(t,540,y);y+=82;});
+      lines.slice(0,maxLines).forEach(t=>{ctx.fillText(t,540,y);y+=82;});
       return y;
      };
-     let y=targetH-420;
-     y=splitLine(text.slice(0,130),y,'white')+28;
-     ctx.font='bold 44px Arial, sans-serif';
-     splitLine(cta.slice(0,85),y,'#ffdf72');
+     let y=targetH-625;
+     y=splitLine(text.slice(0,130),y,'white',3)+20;
+     ctx.font='bold 42px Arial, sans-serif';
+     splitLine(cta.slice(0,85),y,'#ffdf72',2);
     }
     canvas.toBlob(blob=>blob?resolve(blob):reject(Error('Falha ao converter JPEG.')),'image/jpeg',0.87);
    };
