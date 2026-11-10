@@ -159,7 +159,7 @@ if(params.has('oauth_network')){
  history.replaceState(null,'',location.pathname+(params.size?'?'+params.toString():'')+location.hash);
 }
 window.CDEAIBackend={
- status:()=>({configured:Boolean(health?.aiConfigured),loggedIn:Boolean(session),available:Boolean(health?.aiConfigured&&session)}),
+ status:()=>({configured:Boolean(health?.aiConfigured),loggedIn:Boolean(session),available:Boolean(health?.aiConfigured&&session),provider:health?.aiProvider||null}),
  generate:async input=>{
   if(!health?.aiConfigured||!session)throw Error('IA online indisponível. Entre no servidor ou use sugestões gratuitas.');
   return request('/api/ai/captions',{method:'POST',body:JSON.stringify(input)});
