@@ -178,18 +178,21 @@ window.CDEInstagramPublisher={
    ready:Boolean(session&&account?.connected&&account.status==='connected'&&(scopes.includes(publishPermission)||(unified&&account?.grantSource!=='verified'))),
    label:account?.label||null,scopes:account?.scopes||'',requestedScopes:health?.instagramScopes||''};
  },
- uploadImage:async blob=>{
-  if(!session||!api)throw Error('Entre com a senha administrativa antes de carregar fotos.');
-  if(!blob||blob.type!=='image/jpeg')throw Error('Envie apenas uma imagem JPEG.');
+ uploadMedia:async blob=>{
+  if(!session||!api)throw Error('Entre no painel administrativo antes de enviar arquivos.');
+  if(!blob||!['image/jpeg','video/mp4'].includes(blob.type))throw Error('Formato de upload inválido. Use JPEG ou MP4.');
+  const cap=blob.type==='video/mp4'?24*1024*1024:8*1024*1024;
+  if(blob.size>cap)throw Error('O Render Free aceita JPEG até 8 MB ou MP4 até 24 MB. Para vídeos maiores, utilize uma URL pública.');
   const r=await fetch(api+'/api/instagram/media/upload',{
    method:'POST',mode:'cors',cache:'no-store',
-   headers:{Authorization:'Bearer '+session,'Content-Type':'image/jpeg'},body:blob
+   headers:{Authorization:'Bearer '+session,'Content-Type':blob.type},body:blob
   });
   const data=await r.json().catch(()=>({}));
-  if(!r.ok)throw Error(String(data.error||'Não foi possível preparar a imagem.').slice(0,220));
+  if(!r.ok)throw Error(String(data.error||'Não foi possível enviar o arquivo.').slice(0,220));
   return data;
  },
- prepare:async ({kind,mediaUrl,caption})=>request('/api/instagram/publish/prepare',{method:'POST',body:JSON.stringify({kind,mediaUrl,caption})}),
+ uploadImage:async blob=>window.CDEInstagramPublisher.uploadMedia(blob),
+ prepare:async ({kind,mediaUrl,caption,items})=>request('/api/instagram/publish/prepare',{method:'POST',body:JSON.stringify({kind,mediaUrl,caption,items})}),
  checkStatus:async jobId=>request('/api/instagram/publish/status',{method:'POST',body:JSON.stringify({jobId})}),
  confirm:async jobId=>request('/api/instagram/publish/confirm',{method:'POST',body:JSON.stringify({jobId,confirm:true})}),
  refreshAccounts:async ()=>{if(!session)return null;const data=await request('/api/accounts');accounts=data.accounts||[];render();return data;}
