@@ -54,6 +54,19 @@ function kindFrom(format,file){
  if(format==='STORIES')return file.type==='video/mp4'?'STORY_VIDEO':'STORY_IMAGE';
  return format;
 }
+function parseRemoteItems(){
+ const lines=($('ig-bulk-urls')?.value||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ if(lines.length>20)throw Error('No máximo 20 links por lote.');
+ return lines.map(raw=>{
+  let u;
+  try{u=new URL(raw);}catch{throw Error('Link inválido: '+raw.slice(0,80));}
+  if(u.protocol!=='https:'||u.username||u.password||u.hash||u.port)throw Error('Use somente URLs HTTPS públicas.');
+  const path=u.pathname.toLowerCase(),image=/\.jpe?g$/.test(path),video=/\.mp4$/.test(path);
+  if(!image&&!video)throw Error('Links precisam terminar em .jpg, .jpeg ou .mp4.');
+  const name=decodeURIComponent(u.pathname.split('/').pop()||'mídia').slice(0,90);
+  return {file:{name,type:image?'image/jpeg':'video/mp4',size:0},mediaUrl:u.href};
+ });
+}
 function possible(format,files){
  if(!files.length)return 'Selecione pelo menos uma imagem ou vídeo.';
  if(files.some(x=>!['image/jpeg','image/png','image/webp','video/mp4'].includes(x.type)))
@@ -166,21 +179,24 @@ function buildItems(files,kind,caption,when,auto,text,cta,link){
  const made=[],schedule=when?new Date(when).toISOString():null;
  if(kind==='CAROUSEL'){
   made.push({id:id(),title:'Carrossel · '+files.length+' mídias',kind,caption,when:schedule,auto,
-   status:schedule?'scheduled':'draft',items:files.map(f=>({key:f.key,name:f.file.name,mediaType:f.file.type})),
+   status:schedule?'scheduled':'draft',items:files.map(f=>({key:f.key||null,name:f.file.name,mediaType:f.file.type,mediaUrl:f.mediaUrl||null})),
    created:new Date().toISOString()});
  }else for(const value of files){
   const targetKind=kindFrom(kind,value.file);
   made.push({id:id(),title:clean(value.file.name),kind:targetKind,caption,when:schedule,auto,
    storyText:text,storyCta:cta,storyLink:link,
-   status:schedule?'scheduled':'draft',items:[{key:value.key,name:value.file.name,mediaType:value.file.type}],
+   status:schedule?'scheduled':'draft',items:[{key:value.key||null,name:value.file.name,mediaType:value.file.type,mediaUrl:value.mediaUrl||null}],
    created:new Date().toISOString()});
  }
  return made;
 }
 async function addToQueue(){
  const format=$('ig-bulk-format').value,when=$('ig-bulk-time').value,auto=$('ig-bulk-auto').checked;
- const fail=possible(format,selected);if(fail)return notice(fail,true);
- if(queue.length+selected.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
+ let remotes;
+ try{remotes=parseRemoteItems();}catch(err){return notice(err.message||String(err),true);}
+ const allMedia=[...selected,...remotes.map(x=>x.file)];
+ const fail=possible(format,allMedia);if(fail)return notice(fail,true);
+ if(queue.length+allMedia.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
  if(auto&&!when)return notice('Escolha data e hora antes de autorizar a publicação automática.',true);
  if(auto&&new Date(when).getTime()<=Date.now())return notice('O horário automático deve estar no futuro.',true);
  if(when&&Number.isNaN(new Date(when).getTime()))return notice('Informe uma data válida.',true);
@@ -196,8 +212,9 @@ async function addToQueue(){
   for(const file of selected){
    const key=id();await putFile(key,file);refs.push({file,key});
   }
+  refs.push(...remotes);
   const entries=buildItems(refs,format,caption,when,auto,text,cta,link);
-  queue.push(...entries);save();selected=[];$('ig-bulk-files').value='';preview();refresh();
+  queue.push(...entries);save();selected=[];$('ig-bulk-files').value='';$('ig-bulk-urls').value='';preview();refresh();
   notice(entries.length+' publicação(ões) adicionada(s). Arquivos guardados somente neste navegador.');
  }catch(e){notice('Falha ao armazenar os arquivos: '+String(e.message||e),true);}
  finally{button.disabled=false;}
@@ -214,6 +231,10 @@ async function publish(item,{automatic=false}={}){
   if(!item.jobId){
     let prepared=[];
     for(const meta of item.items){
+     if(meta.mediaUrl){
+      prepared.push({kind:meta.mediaType==='video/mp4'?'VIDEO':'IMAGE',mediaUrl:meta.mediaUrl});
+      continue;
+     }
      const file=await getFile(meta.key);
      if(!file)throw Error('Arquivo local não encontrado. Reimporte a mídia neste navegador.');
      const isImage=file.type.startsWith('image/');
@@ -285,11 +306,16 @@ $('ig-bulk-queue').addEventListener('click',async event=>{
  if(button.dataset.action==='delete'){
   if(item.status==='published'&&!window.confirm('O post já foi publicado no Instagram. Isto remove apenas o registro local. Continuar?'))return;
   queue=queue.filter(x=>x.id!==item.id);save();refresh();
-  for(const meta of item.items)if(!queue.some(x=>x.items.some(y=>y.key===meta.key)))try{await delFile(meta.key);}catch{}
+  for(const meta of item.items)if(meta.key&&!queue.some(x=>x.items.some(y=>y.key===meta.key)))try{await delFile(meta.key);}catch{}
   return;
  }
  if(button.dataset.action==='download-story'){
   try{
+   if(item.items[0].mediaUrl){
+    window.open(item.items[0].mediaUrl,'_blank','noopener');
+    notice('Mídia pública aberta em outra aba. Salve o arquivo para adicionar stickers/música no Instagram do celular antes de publicar.');
+    return;
+   }
    const file=await getFile(item.items[0].key);
    if(!file)throw Error('Mídia não encontrada neste navegador.');
    const blob=file.type.startsWith('image/')?
