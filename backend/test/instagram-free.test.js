@@ -67,7 +67,7 @@ test('OAuth Instagram isolado: permissões básicas, callback e estado seguro',a
   assert.equal(expired.data.accounts.find(a=>a.id==='instagram').connected,false);
   const disconnected=await req(base,'/api/accounts/instagram',{method:'DELETE',headers:auth});
   assert.equal(disconnected.status,200);
-  assert.equal((await req(base,'/api/oauth/start/tiktok',{method:'POST',headers:auth})).status,404);
+  assert.equal((await req(base,'/api/oauth/start/tiktok',{method:'POST',headers:auth} )).status,409);
  }finally{await halt(child);}
 });
 test('OAuth Instagram e TikTok têm estados distintos e coexistem',async()=>{
