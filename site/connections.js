@@ -43,7 +43,7 @@ function render(){
  const cfg=$('tiktok-config-status');
  if(cfg)cfg.textContent=demo?'Faltam as credenciais privadas no Render':health?.providerConfigured?.tiktok?'Login TikTok disponível para teste temporário':'Aguardando servidor';
  const igCfg=$('instagram-config-status');
- if(igCfg)igCfg.textContent=demo?'Faltam as credenciais privadas no Render':health?.providerConfigured?.instagram?'Login Instagram disponível para teste temporário':'Aguardando credenciais Instagram';
+ if(igCfg){const account=accounts.find(x=>x.id==='instagram');const permitted=String(account?.scopes||'').split(/[,\s]+/).includes('instagram_business_content_publish');igCfg.textContent=demo?'Configure credenciais Meta no Render':!health?.providerConfigured?.instagram?'Aguardando credenciais Instagram':account?.connected&&permitted&&account.status==='connected'?'Instagram autorizado para publicar':account?.connected?'Conta conectada; permissão de publicação pendente':'Meta configurada; conecte seu Instagram';}
  $('api-login').hidden=demo||Boolean(session);
  $('api-password-wrap').hidden=demo||Boolean(session);
  $('api-logout').hidden=demo||!session;
