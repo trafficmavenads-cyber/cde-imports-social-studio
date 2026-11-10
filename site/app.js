@@ -60,6 +60,6 @@ function markInstagramPublished({title,channel,caption,mediaId}){
  }
  items=items.slice(-500);save();render();
 }
-window.CDESocialData={getItems:()=>items.map(x=>({...x})),markInstagramPublished};
+window.CDESocialData={getItems:()=>items.map(x=>({...x})),markInstagramPublished,hasImage:()=>imageReady};
 draw();render();
 })();
