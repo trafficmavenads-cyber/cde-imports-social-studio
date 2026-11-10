@@ -12,7 +12,7 @@ Para ativar **Gerar com IA online**, configure **privadamente** em Render → En
 - `ADMIN_PASSWORD`: senha administrativa com pelo menos 16 caracteres, usada também nas conexões OAuth, se ainda não estiver cadastrada.
 - `OPENAI_MODEL`: opcional, padrão `gpt-4.1-mini`.
 
-O frontend acessa somente `POST /api/ai/captions` autenticado por Bearer da sessão administrativa; não recebe o segredo. O servidor valida título, diferenciais, tom, objetivo e redes, limita a **10 solicitações por hora por sessão** em memória e solicita JSON por `https://api.openai.com/v1/responses`, com `store:false`. Não há processamento automático em segundo plano. A integração pode gerar custos de API e requer crédito/limite configurado na conta do provedor. Se não houver chave ou sessão, o gerador local continua ativo.
+O frontend acessa somente `POST /api/ai/captions` autenticado por Bearer da sessão administrativa; não recebe o segredo. O servidor valida título, diferenciais, tom, objetivo e redes, limita a **10 solicitações por hora por instância (independentemente de sessões)** em memória e solicita JSON por `https://api.openai.com/v1/responses`, com `store:false`. Não há processamento automático em segundo plano. A integração pode gerar custos de API e requer crédito/limite configurado na conta do provedor. Se não houver chave ou sessão, o gerador local continua ativo.
 
 A solicitação online encaminha **título e diferenciais do produto, tom, objetivo e redes escolhidas** ao provedor de IA. Não inclua dados pessoais, sigilosos nem senhas nesses campos. As sugestões devem ser revisadas, pois modelos podem errar ou inventar informações. A política de privacidade no site descreve esse fluxo.
 
