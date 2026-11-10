@@ -16,6 +16,7 @@ const esc=s=>String(s||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'
 const newId=()=>typeof crypto.randomUUID==='function'?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2);
 let records=[];
 let activeGroup=null;
+const instagramPending=new Set();
 try{
  const value=JSON.parse(localStorage.getItem(STORAGE)||'[]');
  if(Array.isArray(value))records=value.filter(x=>x&&x.id&&x.groupId&&CHANNELS[x.channel]&&
@@ -25,6 +26,25 @@ try{
 function persist(){
  try{localStorage.setItem(STORAGE,JSON.stringify(records));return true;}
  catch{return false;}
+}
+function instagramEditor(x){
+ if(!['instagram-feed','instagram-reels'].includes(x.channel))return '';
+ const posted=x.igStatus==='published';
+ const label=x.channel==='instagram-feed'?'Imagem JPEG pública (.jpg / .jpeg)':'Vídeo MP4 público para Reels';
+ const igStatus=x.igStatus==='published'?'Publicado e confirmado pela Meta':
+  x.igStatus==='ready'?'Mídia pronta para publicar':
+  x.igStatus==='processing'?'Mídia em processamento na Meta':
+  x.igJobId?'Mídia preparada, aguardando verificação':'Aguardando mídia e conexão oficial';
+ return '<div class="ig-publish-box">'+
+  '<strong>Publicar no Instagram · '+(x.channel==='instagram-feed'?'Foto':'Reels')+'</strong>'+
+  '<label>'+esc(label)+'<input type="url" data-ig-media-url placeholder="https://cdn.exemplo.com/arquivo.'+(x.channel==='instagram-feed'?'jpg':'mp4')+
+  '" maxlength="1800" value="'+esc(x.igMediaUrl||'')+'" '+(posted?'disabled':'')+'></label>'+
+  '<small class="ig-publish-state" aria-live="polite">'+esc(igStatus)+(posted&&x.igMediaId?' · ID: '+esc(x.igMediaId):'')+'</small>'+
+  '<div class="network-draft-buttons">'+
+  '<button type="button" class="secondary" data-draft-action="ig-prepare" '+(posted?'disabled':'')+'>Preparar na Meta</button>'+
+  '<button type="button" class="secondary" data-draft-action="ig-status" '+(!x.igJobId||posted?'disabled':'')+'>Verificar mídia</button>'+
+  '<button type="button" class="primary" data-draft-action="ig-publish" '+(x.igStatus!=='ready'?'disabled':'')+'>Publicar agora</button>'+
+  '</div><small class="ai-tip">Requer conta Instagram profissional, autorização de publicação e URL pública direta. Apenas o clique em “Publicar agora” envia o post para o perfil.</small></div>';
 }
 function render(){
  const area=$('network-drafts');if(!area)return;
@@ -41,7 +61,7 @@ function render(){
     '<small class="'+(x.scheduled?'draft-is-scheduled':'draft-is-local')+'">'+
     (x.scheduled?'No calendário interno':'Rascunho criado pela IA')+'</small></div>'+
     '<label>Legenda deste post<textarea rows="5" maxlength="4000" data-draft-text>'+
-    esc(x.caption)+'</textarea></label>'+
+    esc(x.caption)+'</textarea></label>'+instagramEditor(x)+
     '<div class="network-draft-buttons">'+
     '<button type="button" class="secondary" data-draft-action="save">Salvar texto</button>'+
     '<button type="button" class="secondary" data-draft-action="copy">Copiar</button>'+
@@ -60,7 +80,7 @@ function sync({groupId,title,captions,checkout}){
   .map(([channel,caption])=>({channel,caption:caption.trim().slice(0,4000)}));
  if(!input.length)return null;
  const existing=records.filter(x=>x.groupId===groupId);
- const reusable=groupId&&existing.length&&!existing.some(x=>x.scheduled);
+ const reusable=groupId&&existing.length&&!existing.some(x=>x.scheduled||x.igStatus==='published');
  const id=reusable?groupId:newId();
  const allowed=new Set(input.map(x=>x.channel));
  records=records.filter(x=>!(x.groupId===id&&!allowed.has(x.channel)));
@@ -109,12 +129,64 @@ $('network-drafts')?.addEventListener('click',async event=>{
   records=records.filter(x=>x.id!==row.id);persist();render();show('Post removido dos rascunhos locais.');return;
  }
  if(!value){show('Escreva uma legenda antes de salvar este post.',true);return;}
+ if(action.startsWith('ig-')){
+  if(!['instagram-feed','instagram-reels'].includes(row.channel))return;
+  if(instagramPending.has(row.id)){show('Esta publicação já está sendo processada.',true);return;}
+  const publisher=window.CDEInstagramPublisher;
+  const readiness=publisher?.status?.();
+  if(!readiness?.ready){
+   show('O Instagram ainda não está conectado com a permissão de publicação. Vá a Conexões, configure o app Meta e reconecte o perfil.',true);
+   return;
+  }
+  const mediaUrl=card.querySelector('[data-ig-media-url]')?.value?.trim()||'';
+  if(!mediaUrl){show('Informe o link HTTPS público direto da foto ou vídeo do Instagram.',true);return;}
+  if(row.igStatus==='published'){show('Este post já foi publicado. Gere outro rascunho para uma nova publicação.',true);return;}
+  if(action!=='ig-prepare'&&(!row.igJobId||row.igPreparedCaption!==value||row.igPreparedUrl!==mediaUrl)){
+   show('O texto ou link da mídia mudou. Clique em “Preparar na Meta” novamente antes de publicar.',true);return;
+  }
+  if(action==='ig-publish'&&row.igStatus!=='ready'){show('Verifique a mídia e confirme que está pronta para publicar.',true);return;}
+  if(action==='ig-publish'&&!window.confirm('Publicar este '+(row.channel==='instagram-reels'?'Reels':'post com foto')+' no Instagram conectado AGORA? A publicação ficará visível no perfil.'))return;
+  instagramPending.add(row.id);
+  for(const control of card.querySelectorAll('button'))control.disabled=true;
+  show(action==='ig-prepare'?'Enviando a mídia para preparação na Meta...':
+    action==='ig-status'?'Consultando processamento no Instagram...':'Publicando no Instagram...');
+  try{
+   let result;
+   if(action==='ig-prepare'){
+    result=await publisher.prepare({kind:row.channel==='instagram-reels'?'REELS':'IMAGE',mediaUrl,caption:value});
+    row.caption=value;row.igMediaUrl=mediaUrl;row.igPreparedCaption=value;row.igPreparedUrl=mediaUrl;
+    row.igJobId=result.jobId;row.igStatus='prepared';row.igMediaId=null;
+    show('A Meta recebeu a preparação. Clique em “Verificar mídia” até ficar pronta.');
+   }else if(action==='ig-status'){
+    result=await publisher.checkStatus(row.igJobId);
+    row.igStatus=result.ready?'ready':'processing';
+    show(result.ready?'A mídia está pronta. Revise e clique em “Publicar agora”.':'Instagram ainda está processando. Verifique novamente em alguns instantes.');
+   }else{
+    result=await publisher.confirm(row.igJobId);
+    if(result.state!=='published'||!result.mediaId)throw Error('O Instagram não confirmou a publicação.');
+    row.igStatus='published';row.igMediaId=result.mediaId;row.publishedAt=new Date().toISOString();
+    window.CDESocialData?.markInstagramPublished?.({title:row.title,channel:row.channel,caption:value,mediaId:result.mediaId});
+    show('Instagram confirmou a publicação! ID: '+result.mediaId);
+   }
+   row.updated=new Date().toISOString();persist();render();
+  }catch(err){
+   if(action==='ig-publish')row.igStatus='unknown';
+   persist();render();
+   show(String(err?.message||'Falha ao contatar o Instagram').slice(0,220),true);
+  }finally{instagramPending.delete(row.id);}
+  return;
+ }
  if(action==='copy'){
   try{await navigator.clipboard.writeText(value);show('Legenda de '+CHANNELS[row.channel]+' copiada.');}
   catch{show('Não foi possível copiar automaticamente.',true);}return;
  }
  row.caption=value.slice(0,4000);row.updated=new Date().toISOString();persist();
- if(action==='save'){render();show('Legenda de '+CHANNELS[row.channel]+' salva neste navegador.');return;}
+ if(action==='save'){
+  if(row.igJobId&&row.igStatus!=='published'&&row.igPreparedCaption!==value){
+   row.igJobId=null;row.igStatus='draft';
+  }
+  persist();render();show('Legenda de '+CHANNELS[row.channel]+' salva neste navegador.');return;
+ }
  if(action==='calendar'){
   if(row.scheduled){show('Este post já foi agendado.',true);return;}
   const rights=$('rights');
