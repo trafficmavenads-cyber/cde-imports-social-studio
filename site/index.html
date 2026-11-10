@@ -59,6 +59,8 @@ Qualidade, variedade e condições especiais. Confira os detalhes e garanta o se
  <p class="ai-tip">Texto e chamada são incorporados à foto; não são stickers clicáveis. Música da biblioteca, links interativos e enquetes devem ser adicionados pelo aplicativo do Instagram.</p>
  </div>
  <label>Data e horário<input type="datetime-local" id="ig-bulk-time"></label>
+ <label>Intervalo entre posts individuais (horas)<input id="ig-bulk-interval" type="number" min="0" max="720" step="1" value="24"></label>
+ <label class="ig-bulk-check"><input type="checkbox" id="ig-bulk-rights"> Confirmo que possuo autorização para utilizar comercialmente estas imagens, vídeos e áudios.</label>
  <label class="ig-bulk-check"><input type="checkbox" id="ig-bulk-auto"> Autorizo a postagem automática na data escolhida enquanto a aba estiver aberta e o Instagram conectado.</label>
  <p class="ai-tip">O Render Free não executa uma fila persistente. Se o navegador for fechado ou suspenso, a postagem fica pendente. JPEG até 8 MB; MP4 até 24 MB por envio temporário.</p>
  <button type="button" class="primary" id="ig-bulk-add">Adicionar à fila</button>
