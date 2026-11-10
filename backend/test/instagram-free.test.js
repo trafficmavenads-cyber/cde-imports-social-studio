@@ -36,7 +36,7 @@ test('OAuth Instagram isolado: permissões básicas, callback e estado seguro',a
   assert.equal(h.data.providerConfigured.instagram,true);
   assert.equal(h.data.providerConfigured.tiktok,false);
   assert.equal(h.data.instagramCallbackUrl,'https://cde-imports-social-demo.onrender.com/api/oauth/callback/instagram');
-  assert.equal(h.data.instagramScopes,'instagram_business_basic');
+  assert.equal(h.data.instagramScopes,'instagram_business_basic,instagram_business_content_publish');
   assert.equal(JSON.stringify(h.data).includes('instagram_secret_de_teste'),false);
   assert.equal((await req(base,'/api/accounts')).status,401);
   const wrong=await req(base,'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:'errada'})});
@@ -53,7 +53,7 @@ test('OAuth Instagram isolado: permissões básicas, callback e estado seguro',a
   assert.equal(link.origin,'https://www.instagram.com');
   assert.equal(link.searchParams.get('client_id'),'instagram_id_de_teste');
   assert.equal(link.searchParams.get('redirect_uri'),h.data.instagramCallbackUrl);
-  assert.equal(link.searchParams.get('scope'),'instagram_business_basic');
+  assert.equal(link.searchParams.get('scope'),'instagram_business_basic,instagram_business_content_publish');
   assert.equal(link.searchParams.get('response_type'),'code');
   assert.equal(link.searchParams.has('state'),true);
   const noState=await fetch(base+'/api/oauth/callback/instagram?state=unknown&code=fake',{redirect:'manual'});
