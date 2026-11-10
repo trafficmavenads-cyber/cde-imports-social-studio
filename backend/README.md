@@ -1,3 +1,24 @@
+## Instagram Studio: Stories, carrosséis, mídia em lote e agendamento local
+
+**Painel:** `https://trafficmavenads-cyber.github.io/cde-imports-social-studio/#instagram-studio`
+
+Recursos implementados no frontend `site/instagram-bulk.js` e no backend `instagram-publisher.js`:
+
+- Publicação **Stories de imagem JPEG e vídeo MP4** pelo container `media_type=STORIES`, com confirmação manual ou autorização explícita para postagem agendada **somente enquanto o navegador estiver aberto e ativo**.
+- **Story de foto 9:16**: gera JPEG de 1080 × 1920 com texto e chamada visuais incorporados na imagem. **Não gera stickers clicáveis.** Botão **Baixar Story para editar no Instagram** para adicionar música da biblioteca, link sticker, enquete etc. no aplicativo do celular **antes de publicar manualmente**; botão para copiar URL do link.
+- **Carrossel** de 2–10 JPEGs/vídeos MP4 em um único post: cria containers filhos (`is_carousel_item=true`), espera todos ficarem prontos (`FINISHED`), então cria container pai `media_type=CAROUSEL` e chama `media_publish` após confirmação/autorização prévia. Um carrossel conta como um post; vídeos do carrossel precisam ser compatíveis entre si. Imagens são recortadas para 1080 × 1350; revise antes de usar.
+- **Envio múltiplo** de JPEG/PNG/WEBP/MP4 pelo navegador, com arquivos no IndexedDB local até a hora do envio. Imagens são convertidas em JPEG e vídeos MP4 mantidos sem transcodificação. Alternativamente, cole várias URLs HTTPS públicas (uma por linha), inclusive para vídeos maiores.
+- **Fila local**, com título, legenda, intervalo opcional entre posts em horas, horário de publicação, estados reais e confirmação. `setInterval` no navegador verifica posts devidos a cada 30 segundos; só os posts cujos donos autorizaram publicação automática são enviados. Se a aba estiver fechada, suspensa ou sem conexão, o envio não acontecerá. A fila permanece no navegador; arquivos não passam para o servidor até a tentativa de publicação. Tentativas ambíguas não são repetidas automaticamente para reduzir risco de posts duplicados.
+- Fotos do Feed e carrosséis podem carregar JPEG até 8 MB por upload; vídeos MP4 até 24 MB. Armazenamento temporário público imprevisível do Render Free tem **até 20 arquivos e 96 MB no total**, com expiração em até 90 minutos ou ao reiniciar o serviço. **Não é um servidor de mídias permanente.**
+- Stories em produção podem depender da modalidade de conta e permissões autorizadas pela Meta. O backend distingue login unificado (`instagram_content_publish`) e Instagram Login direto (`instagram_business_content_publish`). Um status "Publicado" só aparece após resposta `media_publish` com ID.
+
+### Limitações importantes (não afirmar equivalência ao aplicativo móvel)
+
+A API de publicação do Instagram **não permite música da biblioteca do Instagram, sticker de link, enquetes, perguntas, GIFs ou outros stickers interativos** dentro de Stories. Para esses casos, produza a mídia neste painel, baixe-a e **publique manualmente pelo app do Instagram**, incluindo os recursos antes de postar. Não é possível adicionar esses stickers a um Story publicado anteriormente pela API.
+
+O agendamento atual é **local/foreground**, não um agendador remoto durável. Para publicar com computador desligado ou aba fechada, precisaremos futuramente de credenciais armazenadas com segurança, fila persistente (ex.: Cloudflare D1/R2) e um agendador/worker gratuito configurado. Esse recurso não está pronto nesta versão. Não prometa publicação com a página fechada.
+
+---
 ## Publicação Instagram com confirmação no painel (Feed + Reels)
 
 A partir da versão 0.13, o Social Studio implementa um fluxo de **publicação real sob confirmação** pela Instagram API with Instagram Login:
@@ -7,11 +28,11 @@ A partir da versão 0.13, o Social Studio implementa um fluxo de **publicação 
 3. Entrar em **Conexões → Conectar/Re conectar Instagram** e conceder as duas permissões. O backend armazena a lista `permissions` efetivamente concedida pela Meta e bloqueia publicação se `instagram_business_content_publish` não constar nela.
 4. No gerador Gemini, selecione **Instagram Feed** ou **Instagram Reels**. Em **Posts por rede**, revise a legenda. Para **Feed**, você pode selecionar uma foto no editor, escolher formato **quadrado 1080 × 1080** e clicar **Usar arte do editor (grátis)**: o navegador converte a prévia em JPEG e envia autenticadamente ao Render, que disponibiliza URL pública temporária à Meta. Alternativamente, informe URL HTTPS **direta e pública** de JPEG. Para **Reels**, informe URL HTTPS pública de MP4. Links de páginas de produto e URLs restritas não servem; a Meta precisa acessar o arquivo.
 5. Clique **Preparar na Meta** (cria container), depois **Verificar mídia** até status `FINISHED`. Clique **Publicar agora** e confirme explicitamente no navegador. Só a resposta da API `POST /{IG_ID}/media_publish` com ID indica sucesso. Se a confirmação falhar, o app bloqueia reenvio automático para evitar publicações duplicadas. O registro confirmado aparece nos KPIs de posts publicados.
-6. O Render Free guarda tokens e jobs somente na **memória** e pode perdê-los ao reiniciar/suspender. A publicação é imediata e requer navegador aberto. **Não existe publicação agendada/desassistida no Instagram nesta versão**.
+6. O Render Free guarda tokens e jobs somente na **memória** e pode perdê-los ao reiniciar/suspender. O agendamento local com a aba aberta está disponível em Instagram Studio; publicação remota desassistida e durável ainda não existe.
 
-**Armazenamento temporário gratuito:** `POST /api/instagram/media/upload` recebe um JPEG autenticado (até 8 MB); `GET /api/instagram/media/<token>.jpg` é público e imprevisível, usado pela Meta. Até 12 imagens/64 MB em memória por instância, prazo máximo de 90 minutos, com perda antecipada no caso de sleep, redeploy ou reinício. Não armazene imagens privadas: quem possuir o link poderá visualizá-las durante a validade. A função não exige outra conta de hospedagem. O conteúdo não vai para um serviço externo de arquivos: somente Render e a Meta na publicação.
+**Armazenamento temporário gratuito:** `POST /api/instagram/media/upload` recebe JPEG (até 8 MB) ou MP4 (até 24 MB) autenticado; `GET /api/instagram/media/<token>.jpg` e `.mp4` é público e imprevisível, usado pela Meta. Até 20 arquivos/96 MB em memória por instância, prazo máximo de 90 minutos, com perda antecipada no caso de sleep, redeploy ou reinício. Não armazene imagens privadas: quem possuir o link poderá visualizá-las durante a validade. A função não exige outra conta de hospedagem. O conteúdo não vai para um serviço externo de arquivos: somente Render e a Meta na publicação.
 
-Rotas protegidas por senha e sessão: `POST /api/instagram/publish/prepare`, `POST /api/instagram/publish/status` e `POST /api/instagram/publish/confirm`. O servidor aplica validação de escopo, sessão, token, URL pública, limites de texto, estado e idempotência temporária. Fotos JPEG e Reels estão incluídos; **Stories, carrosséis, uploads locais automáticos e programação remota** precisam de implementação específica.
+Rotas protegidas por senha e sessão: `POST /api/instagram/publish/prepare`, `POST /api/instagram/publish/status` e `POST /api/instagram/publish/confirm`. O servidor aplica validação de escopo, sessão, token, URL pública, limites de texto, estado e idempotência temporária. Fotos JPEG, Reels, Stories básicos e carrosséis estão incluídos. O upload local de mídia no momento do envio está implementado; **programação remota durável e stickers/músicas de Stories** não são suportados.
 
 Docs Meta: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/content-publishing
 
