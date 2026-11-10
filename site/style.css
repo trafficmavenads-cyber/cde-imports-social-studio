@@ -105,3 +105,16 @@
 button[hidden],input[hidden],label[hidden]{display:none!important}
 @media(max-width:900px){#account-grid.connection-grid{grid-template-columns:1fr}.connection-setup-head{align-items:start;flex-direction:column}.connection-setup-head small{max-width:100%;text-align:left}}
 @media(max-width:550px){.connection-input-row{flex-direction:column;align-items:stretch}.connection-input-row label,.connection-input-row button{width:100%;max-width:none!important;flex:1}.connection-setup{padding:13px}}
+
+/* Guia de setup TikTok Login Kit */
+.tiktok-config-guide{padding:17px;border:1px solid #cbdff2;border-radius:13px;background:#f7fbff;margin:17px 0 22px;font-size:12px;color:#335076}
+.tiktok-guide-title{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;color:#0d306c;font-size:14px}
+.tiktok-guide-title span{font-size:11px;color:#8a6419;background:#fff1d5;border-radius:30px;padding:4px 9px}
+.tiktok-config-guide p{margin:10px 0;line-height:1.65}
+.tiktok-config-guide code{overflow-wrap:anywhere;color:#0e4f8d}
+.tiktok-callback{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px dashed #b7d4f4;background:#fff;padding:10px;border-radius:8px}
+.tiktok-callback code{overflow-wrap:anywhere;font-size:12px;min-width:0}
+.tiktok-callback button{flex:0 0 auto;font-size:11px}
+.tiktok-guide-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+.tiktok-guide-actions a{display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+@media(max-width:700px){.tiktok-callback{align-items:stretch;flex-direction:column}.tiktok-callback button{width:100%}.tiktok-guide-actions a{flex:1 1 auto}}
