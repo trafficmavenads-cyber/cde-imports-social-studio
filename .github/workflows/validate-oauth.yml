@@ -7,6 +7,7 @@ on:
       - "site/connections.js"
       - "site/ai.js"
       - "site/drafts.js"
+      - "site/instagram-bulk.js"
       - "site/app.js"
       - ".github/workflows/validate-oauth.yml"
   pull_request:
@@ -31,6 +32,7 @@ jobs:
           node --check site/connections.js
           node --check site/ai.js
           node --check site/drafts.js
+          node --check site/instagram-bulk.js
           node --check site/app.js
           node --check backend/demo-server.js
           node --check backend/instagram-publisher.js
@@ -43,12 +45,13 @@ jobs:
           node --check backend/test/instagram-publish.test.js
           node --check backend/test/instagram-publish-server.test.js
           node --check backend/test/instagram-media.test.js
+          node --check backend/test/instagram-formats.test.js
           node --check backend/test/instagram-publish-fetch-mock.js
           node --check backend/test/content-ai.test.js
           node --check backend/test/content-ui.test.js
           node --check backend/test/drafts-ui.test.js
       - name: Testar login TikTok e recusas de acesso sem conexão real
-        run: node --test backend/test/tiktok-free.test.js backend/test/instagram-free.test.js backend/test/instagram-unified.test.js backend/test/oauth-redirect-ui.test.js backend/test/instagram-publish.test.js backend/test/instagram-publish-server.test.js backend/test/instagram-media.test.js backend/test/content-ai.test.js backend/test/content-ui.test.js backend/test/drafts-ui.test.js
+        run: node --test backend/test/tiktok-free.test.js backend/test/instagram-free.test.js backend/test/instagram-unified.test.js backend/test/oauth-redirect-ui.test.js backend/test/instagram-publish.test.js backend/test/instagram-formats.test.js backend/test/instagram-publish-server.test.js backend/test/instagram-media.test.js backend/test/content-ai.test.js backend/test/content-ui.test.js backend/test/drafts-ui.test.js
       - name: Testar login, sessão e API sem credenciais reais
         shell: bash
         run: |
