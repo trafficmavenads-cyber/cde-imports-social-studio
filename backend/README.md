@@ -1,3 +1,23 @@
+## Testar TikTok Login Kit no Render gratuito (versão 0.9)
+
+O serviço `cde-imports-social-demo` usa `backend/demo-server.js`. Agora ele tem dois modos:
+
+- **Demo padrão:** nenhum login real, nenhuma senha ou token recebido, nenhuma publicação. A API `/api/health` devolve `demoMode: true`.
+- **Login temporário TikTok:** habilitado **somente** quando a hospedagem contém as três variáveis privadas `TIKTOK_CLIENT_ID` (Client Key), `TIKTOK_CLIENT_SECRET` e `ADMIN_PASSWORD` (senha **nova**, de no mínimo 16 caracteres). A API devolve `demoMode: false` e `providerConfigured.tiktok: true`.
+
+**O Render gratuito não guarda tokens persistentemente.** As sessões e os tokens de TikTok são mantidos somente na memória do processo Node. Após suspensão por inatividade, reinício ou deploy, o administrador precisa autorizar a conta novamente. Esta estrutura é **somente para testes**, sem agendamento e sem publicação automática.
+
+1. Em [TikTok Developers Apps](https://developers.tiktok.com/apps/), abra seu aplicativo, ative **Login Kit (Web)** e registre exatamente a Redirect URI:
+   `https://cde-imports-social-demo.onrender.com/api/oauth/callback/tiktok`
+2. Confirme a permissão `user.info.basic`. É a única solicitada por padrão; as permissões de publicação são gerenciadas separadamente.
+3. No [Render do Social Studio](https://dashboard.render.com/web/srv-dbpkmi56e07s73d9fci0), abra **Environment** e cadastre, **somente lá**, `TIKTOK_CLIENT_ID`, `TIKTOK_CLIENT_SECRET` e uma `ADMIN_PASSWORD` aleatória e diferente da senha do Render. Não poste esses valores em mensagens ou no GitHub.
+4. Aguarde a implantação acionada pela atualização de variáveis. Abra `https://cde-imports-social-demo.onrender.com/api/health` e confira `"demoMode":false`.
+5. No [Social Studio](https://trafficmavenads-cyber.github.io/cde-imports-social-studio/#conexoes), pressione **Verificar servidor**, entre com sua nova senha administrativa, clique em **Conectar TikTok** e autorize no TikTok.
+6. Volte ao painel e veja o nome da conta conectada. Ao encerrar a sessão ou o servidor entrar em suspensão, será necessário autenticar novamente.
+
+Não existe configuração de backend que ignore as aprovações do TikTok. Para upload de vídeo use `video.upload`; para Direct Post, `video.publish` e auditoria são etapas adicionais.
+
+---
 # CDE Imports — Conectar redes sociais (OAuth)
 
 Esta pasta contém um **servidor real para iniciar e concluir fluxos OAuth** de Instagram, TikTok, Pinterest e YouTube. Ele **não está hospedado no GitHub Pages**. Para autorizar contas reais, publique este serviço em uma hospedagem Node.js com HTTPS, disco persistente e credenciais de aplicativos oficiais.
