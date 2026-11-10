@@ -37,11 +37,13 @@ jobs:
           node --check backend/test/tiktok-free.test.js
           node --check backend/test/instagram-free.test.js
           node --check backend/test/instagram-publish.test.js
+          node --check backend/test/instagram-publish-server.test.js
+          node --check backend/test/instagram-publish-fetch-mock.js
           node --check backend/test/content-ai.test.js
           node --check backend/test/content-ui.test.js
           node --check backend/test/drafts-ui.test.js
       - name: Testar login TikTok e recusas de acesso sem conexão real
-        run: node --test backend/test/tiktok-free.test.js backend/test/instagram-free.test.js backend/test/instagram-publish.test.js backend/test/content-ai.test.js backend/test/content-ui.test.js backend/test/drafts-ui.test.js
+        run: node --test backend/test/tiktok-free.test.js backend/test/instagram-free.test.js backend/test/instagram-publish.test.js backend/test/instagram-publish-server.test.js backend/test/content-ai.test.js backend/test/content-ui.test.js backend/test/drafts-ui.test.js
       - name: Testar login, sessão e API sem credenciais reais
         shell: bash
         run: |
