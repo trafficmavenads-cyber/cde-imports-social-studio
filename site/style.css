@@ -22,3 +22,56 @@
 .video-stripes i:last-child{background:#ffd339}
 .preview button:disabled{opacity:.6;cursor:progress}
 @media(max-width:760px){.media-uploads{grid-template-columns:1fr}}
+
+/* Correção v0.6.2: prévia de vídeo com dimensão fixa e sem transbordamento */
+.workspace > .panel,.preview,.preview .canvas-wrap{min-width:0;max-width:100%}
+.preview .canvas-wrap{
+ display:flex;justify-content:center;align-items:center;
+ width:100%;max-width:100%;min-height:0;
+ overflow:hidden;padding:18px;
+}
+.video-frame,
+.video-frame[data-format="square"],
+.video-frame[data-format="story"],
+.video-frame[data-format="pin"]{
+ position:relative;display:block;flex:0 1 auto;
+ height:auto;min-width:0;min-height:0;
+ max-width:100%;overflow:hidden;
+ isolation:isolate;margin:0 auto;
+ box-sizing:border-box;background:#071941;
+}
+.video-frame[data-format="square"]{width:min(100%,420px);aspect-ratio:1/1}
+.video-frame[data-format="story"]{width:min(100%,300px);aspect-ratio:9/16}
+.video-frame[data-format="pin"]{width:min(100%,320px);aspect-ratio:2/3}
+.video-frame .video-brand{
+ position:absolute;z-index:2;top:0;left:0;right:0;
+ width:100%;height:14%;max-height:14%;min-height:0;
+ display:flex;overflow:hidden;padding:5px 5%;
+ align-items:center;justify-content:space-between;
+}
+.video-frame .video-brand img{display:block;width:auto;height:90%;max-width:31%;max-height:100%;object-fit:contain}
+.video-frame .video-brand strong{font-size:clamp(9px,1.2vw,15px);overflow:hidden;text-overflow:ellipsis}
+.video-frame video{
+ display:block;position:absolute;z-index:1;
+ left:0;top:14%;bottom:auto;right:0;
+ width:100%!important;height:calc(75% - 6px)!important;
+ max-width:100%;max-height:calc(75% - 6px);
+ min-width:0;min-height:0;
+ object-fit:contain;background:#08152c;
+}
+.video-frame .video-footer{
+ position:absolute;z-index:2;left:0;right:0;bottom:6px;
+ width:100%;height:11%;max-height:11%;min-height:0;
+ display:flex;overflow:hidden;padding:0 4%;
+}
+.video-frame .video-footer img{display:block;width:auto;height:75%;max-height:75%;max-width:20%;object-fit:contain}
+.video-frame .video-stripes{
+ position:absolute;z-index:3;left:0;bottom:0;right:0;
+ height:6px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))
+}
+@media(max-width:550px){
+ .preview .canvas-wrap{padding:10px}
+ .video-frame[data-format="story"]{width:min(100%,270px)}
+ .video-frame[data-format="pin"]{width:min(100%,290px)}
+ .video-frame .video-brand strong{font-size:11px}
+}
