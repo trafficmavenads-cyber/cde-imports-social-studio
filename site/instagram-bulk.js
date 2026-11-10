@@ -111,6 +111,7 @@ function refresh(){
   }
   act('Publicar agora','publish',item.status==='published'||item.status==='running'||busy.has(item.id));
   act('Editar legenda','edit',item.status==='published'||item.status==='running');
+  if(item.kind.startsWith('STORY_')&&item.storyLink)act('Copiar link para sticker manual','copylink',false);
   act('Excluir','delete',item.status==='running'||busy.has(item.id));
   card.append(actions);root.append(card);
  });
@@ -209,24 +210,26 @@ async function publish(item,{automatic=false}={}){
  }
  busy.add(item.id);item.status='running';item.error='';save();refresh();
  try{
-  let prepared=[];
-  for(const meta of item.items){
-   const file=await getFile(meta.key);
-   if(!file)throw Error('Arquivo local não encontrado. Reimporte a mídia neste navegador.');
-   const isImage=file.type.startsWith('image/');
-   const blob=isImage?await imageToJpeg(file,item.kind,
-     item.kind==='STORY_IMAGE'?item.storyText||'':'',item.kind==='STORY_IMAGE'?item.storyCta||'':''):file;
-   const response=await ig.uploadMedia(blob);
-   if(!response.mediaUrl)throw Error('O Render não retornou a URL pública.');
-   prepared.push({kind:isImage?'IMAGE':'VIDEO',mediaUrl:response.mediaUrl});
-  }
-  const result=await ig.prepare({
-   kind:item.kind,caption:item.kind.startsWith('STORY_')?'':item.caption,
-   mediaUrl:prepared.length===1?prepared[0].mediaUrl:undefined,
-   items:item.kind==='CAROUSEL'?prepared:undefined
-  });
-  if(!result.jobId)throw Error('A Meta não confirmou a criação do post.');
-  item.jobId=result.jobId;save();
+  if(!item.jobId){
+    let prepared=[];
+    for(const meta of item.items){
+     const file=await getFile(meta.key);
+     if(!file)throw Error('Arquivo local não encontrado. Reimporte a mídia neste navegador.');
+     const isImage=file.type.startsWith('image/');
+     const blob=isImage?await imageToJpeg(file,item.kind,
+       item.kind==='STORY_IMAGE'?item.storyText||'':'',item.kind==='STORY_IMAGE'?item.storyCta||'':''):file;
+     const response=await ig.uploadMedia(blob);
+     if(!response.mediaUrl)throw Error('O Render não retornou a URL pública.');
+     prepared.push({kind:isImage?'IMAGE':'VIDEO',mediaUrl:response.mediaUrl});
+    }
+    const result=await ig.prepare({
+     kind:item.kind,caption:item.kind.startsWith('STORY_')?'':item.caption,
+     mediaUrl:prepared.length===1?prepared[0].mediaUrl:undefined,
+     items:item.kind==='CAROUSEL'?prepared:undefined
+    });
+    if(!result.jobId)throw Error('A Meta não confirmou a criação do post.');
+    item.jobId=result.jobId;save();
+    }
   let ready=false;
   for(let round=0;round<24;round++){
    await delay(round<3?1300:3000);
@@ -284,12 +287,18 @@ $('ig-bulk-queue').addEventListener('click',async event=>{
   for(const meta of item.items)if(!queue.some(x=>x.items.some(y=>y.key===meta.key)))try{await delFile(meta.key);}catch{}
   return;
  }
+ if(button.dataset.action==='copylink'){
+  const link=item.storyLink;
+  try{await navigator.clipboard.writeText(link);notice('Link copiado. Abra o Instagram pelo celular para adicionar o sticker clicável.');}
+  catch{notice('Não foi possível copiar automaticamente; copie o link do rascunho.',true);}
+  return;
+ }
  if(button.dataset.action==='edit'){
   const next=window.prompt('Edite a legenda local deste post (não altera post já publicado):',item.caption);
   if(next===null)return;item.caption=next.trim().slice(0,2200);save();refresh();return;
  }
  if(button.dataset.action==='publish'){
-  if(!window.confirm('Publicar AGORA '+item.title+' no Instagram conectado? A mídia ficará visível no perfil.'))return;
+  if(!window.confirm('Publicar AGORA '+item.title+' no Instagram conectado? Isso publica a mídia, sem stickers de música ou link.'))return;
   await publish(item);return;
  }
 });
