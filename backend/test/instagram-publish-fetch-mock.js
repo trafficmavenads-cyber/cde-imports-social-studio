@@ -8,12 +8,18 @@ globalThis.fetch=async(input,options={})=>{
   return json({access_token:'access-only-in-test',user_id:'17841400000000123',
    permissions:['instagram_business_basic','instagram_business_content_publish'],expires_in:3600});
  }
+ if(u.startsWith('https://graph.instagram.com/access_token?')){
+  const req=new URL(u);
+  if(req.searchParams.get('grant_type')!=='ig_exchange_token'||!req.searchParams.get('client_secret'))
+   throw Error('Long-lived token exchange parameters missing');
+  return json({access_token:'long-token-test-only',expires_in:5184000,token_type:'bearer'});
+ }
  if(u.startsWith('https://graph.instagram.com/me?')){
   return json({id:'17841400000000123',username:'cdeimports.test',account_type:'BUSINESS'});
  }
  if(u==='https://graph.instagram.com/v26.0/17841400000000123/media'){
   if(options.method!=='POST'||!String(options.body).includes('image_url='))throw Error('Missing media parameters');
-  if(options.headers?.Authorization!=='Bearer access-only-in-test')throw Error('Invalid bearer');
+  if(options.headers?.Authorization!=='Bearer long-token-test-only')throw Error('Invalid bearer');
   return json({id:'17900000000000111'});
  }
  if(u==='https://graph.instagram.com/v26.0/17900000000000111?fields=status_code'){
