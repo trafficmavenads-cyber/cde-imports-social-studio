@@ -48,6 +48,7 @@ Qualidade, variedade e condições especiais. Confira os detalhes e garanta o se
  <label>Tipo de publicação<select id="ig-bulk-format"><option value="AUTO">Automático: foto no Feed, vídeo em Reels</option><option value="IMAGE">Fotos no Feed</option><option value="REELS">Reels em vídeo</option><option value="STORIES">Stories de foto ou vídeo</option><option value="CAROUSEL">Um carrossel de 2 a 10 arquivos</option></select></label>
  <label>Selecionar arquivos<input id="ig-bulk-files" type="file" accept="image/jpeg,image/png,image/webp,video/mp4" multiple></label>
  <div id="ig-bulk-selected" class="ig-selected-files">Nenhum arquivo selecionado.</div>
+ <label>Ou cole links públicos (um JPEG/MP4 por linha)<textarea id="ig-bulk-urls" rows="3" placeholder="https://cdn.exemplo.com/video1.mp4\nhttps://cdn.exemplo.com/foto2.jpg"></textarea></label>
  <label>Legenda para Feed / Reels / carrossel<textarea id="ig-bulk-caption" maxlength="2200" rows="4" placeholder="Escreva uma legenda ou importe do Gemini"></textarea></label>
  <button type="button" class="secondary" id="ig-bulk-import-caption">Usar legenda do Gemini</button>
  <div id="ig-story-options" hidden class="ig-story-fields">
@@ -64,7 +65,7 @@ Qualidade, variedade e condições especiais. Confira os detalhes e garanta o se
  </div><aside class="ig-bulk-aside">
  <h3>Publicação profissional</h3>
  <p>Posts e carrosséis são preparados e publicados pela API oficial após sua autorização. Stories permitem foto/vídeo básico, sem stickers interativos da biblioteca do Instagram.</p>
- <p>Para links e músicas do aplicativo, finalize a edição manualmente no celular.</p>
+ <p>Para links clicáveis e músicas do catálogo, baixe o Story e publique pelo aplicativo do celular depois de adicionar os elementos.</p>
  <p><a href="https://www.instagram.com/" target="_blank" rel="noopener">Abrir Instagram</a></p>
  </aside></div>
  <div id="ig-bulk-message" class="ai-message" aria-live="polite">Os arquivos ficam no navegador até o horário de publicação.</div>
