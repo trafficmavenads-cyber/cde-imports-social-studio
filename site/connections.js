@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 const providers=[
- {id:'instagram',title:'Instagram',icon:'◎',desc:'Conta profissional Meta • Instagram Login'},
+ {id:'instagram',title:'Instagram',icon:'◎',desc:'Conta profissional Meta • login unificado ou direto'},
  {id:'tiktok',title:'TikTok',icon:'♪',desc:'Login Kit • escopos aprovados'},
  {id:'pinterest',title:'Pinterest',icon:'Ⓟ',desc:'Pinterest API • criação de Pins'},
  {id:'youtube',title:'YouTube',icon:'▶',desc:'Conta Google • canal do YouTube'}
@@ -43,7 +43,7 @@ function render(){
  const cfg=$('tiktok-config-status');
  if(cfg)cfg.textContent=demo?'Faltam as credenciais privadas no Render':health?.providerConfigured?.tiktok?'Login TikTok disponível para teste temporário':'Aguardando servidor';
  const igCfg=$('instagram-config-status');
- if(igCfg){const account=accounts.find(x=>x.id==='instagram');const permitted=String(account?.scopes||'').split(/[,\s]+/).includes('instagram_business_content_publish');igCfg.textContent=demo?'Configure credenciais Meta no Render':!health?.providerConfigured?.instagram?'Aguardando credenciais Instagram':account?.connected&&permitted&&account.status==='connected'?'Instagram autorizado para publicar':account?.connected?'Conta conectada; permissão de publicação pendente':'Meta configurada; conecte seu Instagram';}
+ if(igCfg){const account=accounts.find(x=>x.id==='instagram');const permitted=String(account?.scopes||'').split(/[,\s]+/).includes(health?.instagramLoginMode==='unified'?'instagram_content_publish':'instagram_business_content_publish');const tentative=health?.instagramLoginMode==='unified'&&account?.connected&&account?.grantSource!=='verified';igCfg.textContent=demo?'Configure credenciais Meta no Render':!health?.providerConfigured?.instagram?'Aguardando credenciais Instagram':account?.connected&&permitted&&account.status==='connected'?'Instagram autorizado para publicar':tentative?'Conta conectada; a Meta confirmará permissão ao publicar':account?.connected?'Conta conectada; permissão de publicação pendente':'Meta configurada; conecte seu Instagram';}
  $('api-login').hidden=demo||Boolean(session);
  $('api-password-wrap').hidden=demo||Boolean(session);
  $('api-logout').hidden=demo||!session;
@@ -162,9 +162,10 @@ window.CDEInstagramPublisher={
  status:()=>{
   const account=accounts.find(x=>x.id==='instagram');
   const scopes=String(account?.scopes||'').split(/[,\s]+/);
+  const unified=health?.instagramLoginMode==='unified',publishPermission=unified?'instagram_content_publish':'instagram_business_content_publish';
   return {configured:Boolean(health?.providerConfigured?.instagram),
    authenticated:Boolean(session),connected:Boolean(account?.connected),
-   ready:Boolean(session&&account?.connected&&account.status==='connected'&&scopes.includes('instagram_business_content_publish')),
+   ready:Boolean(session&&account?.connected&&account.status==='connected'&&(scopes.includes(publishPermission)||(unified&&account?.grantSource!=='verified'))),
    label:account?.label||null,scopes:account?.scopes||'',requestedScopes:health?.instagramScopes||''};
  },
  uploadImage:async blob=>{
