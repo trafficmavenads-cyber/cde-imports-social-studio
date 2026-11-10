@@ -46,35 +46,89 @@ function createPublisher({getAccount,callMeta}){
   const job=jobs.get(id);
   return job?.session===session?job:null;
  }
+ function mediaTypeAllowed(item){
+  if(!item||!['IMAGE','VIDEO'].includes(item.kind))return null;
+  const url=publicMediaUrl(item.mediaUrl);
+  if(!url)return null;
+  const pathname=new URL(url).pathname;
+  if(item.kind==='IMAGE'&&!/\.jpe?g$/i.test(pathname))return null;
+  if(item.kind==='VIDEO'&&!/\.(mp4|mov)$/i.test(pathname))return null;
+  return {kind:item.kind,mediaUrl:url};
+ }
+ async function createContainer(account,parameters){
+  const response=await callMeta(graphFor(account)+'/'+encodeURIComponent(String(account.openId))+'/media',{
+   method:'POST',headers:{Authorization:'Bearer '+account.accessToken,'Content-Type':'application/x-www-form-urlencoded'},
+   body:new URLSearchParams(parameters)
+  });
+  if(!/^\d+$/.test(String(response.id||'')))throw Error('Meta não retornou container válido');
+  return String(response.id);
+ }
+ async function containerState(account,id){
+  const info=await callMeta(graphFor(account)+'/'+encodeURIComponent(id)+'?fields=status_code',{
+   headers:{Authorization:'Bearer '+account.accessToken}
+  });
+  return String(info.status_code||'').toUpperCase();
+ }
+ function outputStatus(job,state,ready=false){
+  return {code:200,body:{jobId:job.id,kind:job.kind,state,ready,mediaCount:job.items?.length||1}};
+ }
  async function prepare(session,input){
   cleanup();
   const {account,error}=requireAccount(session);
   if(error)return {code:409,body:{error}};
   if(jobs.size>=100)return {code:429,body:{error:'Muitas publicações em preparação. Tente novamente mais tarde.'}};
-  if(!input||!['IMAGE','REELS'].includes(input.kind))return {code:400,body:{error:'Selecione foto de Feed ou vídeo para Reels.'}};
-  const url=publicMediaUrl(input.mediaUrl);
-  if(!url)return {code:400,body:{error:'Informe um link HTTPS público direto para o arquivo de mídia.'}};
+  const kind=input?.kind;
+  if(!['IMAGE','REELS','STORY_IMAGE','STORY_VIDEO','CAROUSEL'].includes(kind))
+   return {code:400,body:{error:'Formato inválido. Use Feed, Reels, Story ou Carrossel.'}};
+  const isStory=kind.startsWith('STORY_');
   const caption=typeof input.caption==='string'?input.caption.trim():'';
-  if(!caption||caption.length>2200)return {code:400,body:{error:'A legenda deve conter entre 1 e 2.200 caracteres.'}};
-  if(input.kind==='IMAGE'&& !/\.jpe?g(?:$|\?)/i.test(new URL(url).pathname+'?'))
-   return {code:400,body:{error:'Para fotos do Instagram, utilize um link direto de imagem JPEG (.jpg ou .jpeg).'}};
-  const args={caption};
-  if(input.kind==='IMAGE')args.image_url=url;
-  else {args.media_type='REELS';args.video_url=url;args.share_to_feed='true';}
+  if(!isStory&&(!caption||caption.length>2200))
+   return {code:400,body:{error:'A legenda deve conter entre 1 e 2.200 caracteres.'}};
+  if(isStory&&caption.length>2200)return {code:400,body:{error:'Legenda longa demais.'}};
+  let items;
+  if(kind==='CAROUSEL'){
+   if(!Array.isArray(input.items)||input.items.length<2||input.items.length>10)
+    return {code:400,body:{error:'Carrosséis precisam de 2 a 10 fotos ou vídeos.'}};
+   items=input.items.map(mediaTypeAllowed);
+   if(items.some(x=>!x))return {code:400,body:{error:'Use links HTTPS diretos de arquivos JPEG ou MP4/MOV no carrossel.'}};
+  }else{
+   const media=mediaTypeAllowed({kind:['IMAGE','STORY_IMAGE'].includes(kind)?'IMAGE':'VIDEO',mediaUrl:input.mediaUrl});
+   if(!media)return {code:400,body:{error:'Informe o link HTTPS direto para foto JPEG ou vídeo MP4/MOV.'}};
+   items=[media];
+  }
   const id=crypto.randomBytes(24).toString('hex');
-  const job={id,session,accountId:String(account.openId),kind:input.kind,created:Date.now(),state:'preparing',caption,mediaUrl:url};
+  const job={id,session,accountId:String(account.openId),kind,created:Date.now(),
+   state:'preparing',caption,items,childIds:[],containerId:null,metaStatus:''};
   jobs.set(id,job);
   try{
-   const data=await callMeta(graphFor(account)+'/'+encodeURIComponent(job.accountId)+'/media',{
-    method:'POST',headers:{Authorization:'Bearer '+account.accessToken,'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams(args)
-   });
-   if(!/^\d+$/.test(String(data.id||'')))throw new Error('A Meta não retornou o identificador da mídia.');
-   job.containerId=String(data.id);job.state='prepared';
-   return {code:200,body:{jobId:id,state:'prepared',kind:job.kind,message:'Mídia enviada para preparação na Meta. Verifique se está pronta antes de publicar.'}};
-  }catch(e){
-   jobs.delete(id);
-   return {code:502,body:{error:'Não foi possível preparar a mídia no Instagram. Verifique a permissão, a URL pública e o formato.'}};
+   if(kind==='CAROUSEL'){
+    // Child containers first; they must be FINISHED before the parent is created.
+    for(const item of items){
+     const args={is_carousel_item:'true'};
+     if(item.kind==='IMAGE')args.image_url=item.mediaUrl;
+     else{args.media_type='VIDEO';args.video_url=item.mediaUrl;}
+     const child=await createContainer(account,args);
+     job.childIds.push(child);
+    }
+    job.state='children_pending';
+   }else{
+    const args={};
+    if(isStory)args.media_type='STORIES';
+    else args.caption=caption;
+    if(items[0].kind==='IMAGE')args.image_url=items[0].mediaUrl;
+    else{
+     if(kind==='REELS'){args.media_type='REELS';args.share_to_feed='true';}
+     args.video_url=items[0].mediaUrl;
+    }
+    job.containerId=await createContainer(account,args);
+    job.state='prepared';
+   }
+   return {code:200,body:{jobId:id,kind,mediaCount:items.length,state:job.state,
+    message:kind==='CAROUSEL'?'Itens recebidos; verifique o processamento para montar o carrossel.':'Mídia recebida; verifique o processamento da Meta.'}};
+  }catch{
+   // If Meta created a partial child, do not retry automatically.
+   job.state='unknown';
+   return {code:502,body:{error:'A Meta não confirmou toda a preparação. Confira as URLs e crie um novo rascunho antes de repetir.'}};
   }
  }
  async function checkStatus(session,input){
@@ -82,20 +136,47 @@ function createPublisher({getAccount,callMeta}){
   if(!job)return {code:404,body:{error:'Preparação não encontrada ou expirada. Refaça o envio.'}};
   const {account,error}=requireAccount(session);
   if(error)return {code:409,body:{error}};
-  if(String(account.openId)!==job.accountId)return {code:403,body:{error:'A mídia pertence a outra conta. Prepare novamente.'}};
-  if(job.state==='published')return {code:200,body:{jobId:job.id,state:'published',mediaId:job.mediaId}};
-  if(job.state==='unknown')return {code:409,body:{error:'Resultado do envio não confirmado. Confira o Instagram antes de tentar criar outra publicação.'}};
-  if(job.state==='publishing')return {code:409,body:{error:'Publicação em andamento. Não repita o envio.'}};
+  if(String(account.openId)!==job.accountId)return {code:403,body:{error:'A mídia pertence a outra conta.'}};
+  if(job.state==='published')return {code:200,body:{jobId:job.id,state:'published',ready:true,mediaId:job.mediaId}};
+  if(job.state==='unknown')return {code:409,body:{error:'Estado desconhecido na Meta. Não repita automaticamente o envio.'}};
+  if(['preparing','publishing','checking_children'].includes(job.state))
+   return {code:409,body:{error:'Mídia sendo processada; consulte novamente.'}};
+  if(job.kind==='CAROUSEL'&&job.state==='children_pending'){
+   job.state='checking_children';
+   try{
+    const statuses=[];
+    for(const child of job.childIds)statuses.push(await containerState(account,child));
+    if(statuses.some(x=>['ERROR','EXPIRED'].includes(x))){
+     job.state='failed';
+     return {code:409,body:{error:'Um item do carrossel foi rejeitado pela Meta.',state:'ERROR',ready:false}};
+    }
+    if(statuses.some(x=>x!=='FINISHED')){
+     job.state='children_pending';
+     return outputStatus(job,'IN_PROGRESS',false);
+    }
+    // Assemble the carousel only after every child is ready.
+    job.state='creating_parent';
+    job.containerId=await createContainer(account,{
+     media_type:'CAROUSEL',children:job.childIds.join(','),caption:job.caption
+    });
+    job.state='prepared';
+   }catch{
+    if(job.state==='creating_parent')job.state='unknown';else job.state='children_pending';
+    return {code:502,body:{error:'Não foi possível preparar o carrossel. Verifique a mídia e tente consultar novamente.'}};
+   }
+  }
+  if(job.state==='failed')return {code:409,body:{error:'A Meta rejeitou a mídia. Crie outra publicação.'}};
+  if(job.state!=='prepared')return {code:409,body:{error:'A preparação não está pronta.'}};
   try{
-   const info=await callMeta(graphFor(account)+'/'+encodeURIComponent(job.containerId)+'?fields=status_code',{
-    headers:{Authorization:'Bearer '+account.accessToken}
-   });
-   const state=String(info.status_code||'').toUpperCase();
+   const state=await containerState(account,job.containerId);
    job.metaStatus=state;
-   if(['ERROR','EXPIRED'].includes(state))return {code:409,body:{jobId:job.id,state,ready:false,error:'O Instagram não conseguiu processar essa mídia. Confira o arquivo público e prepare novamente.'}};
-   return {code:200,body:{jobId:job.id,state,ready:state==='FINISHED'}};
+   if(['ERROR','EXPIRED'].includes(state)){
+    job.state='failed';
+    return {code:409,body:{jobId:job.id,state,ready:false,error:'A Meta rejeitou ou expirou a mídia.'}};
+   }
+   return outputStatus(job,state,state==='FINISHED');
   }catch{
-   return {code:502,body:{error:'Não foi possível consultar o processamento no Instagram. Tente verificar novamente.'}};
+   return {code:502,body:{error:'Não foi possível consultar o processamento no Instagram.'}};
   }
  }
  async function confirm(session,input){
