@@ -1,0 +1,59 @@
+name: Validar conexões OAuth
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "site/connections.js"
+      - ".github/workflows/validate-oauth.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "site/connections.js"
+      - ".github/workflows/validate-oauth.yml"
+permissions:
+  contents: read
+jobs:
+  oauth-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verificar sintaxe
+        run: |
+          node --check backend/server.js
+          node --check site/connections.js
+      - name: Testar login, sessão e API sem credenciais reais
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SITE_URL="https://trafficmavenads-cyber.github.io/cde-imports-social-studio/"
+          export BACKEND_URL="http://127.0.0.1:8080"
+          export ADMIN_PASSWORD="SenhaSomenteDeTesteGithub2026!"
+          export TOKEN_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          export DATA_DIR="$RUNNER_TEMP/cde-social-test"
+          export PORT=8080
+          mkdir -p "$DATA_DIR"
+          node backend/server.js > "$RUNNER_TEMP/oauth.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in {1..20}; do
+            if curl -fsS "http://127.0.0.1:8080/api/health" > "$RUNNER_TEMP/health.json"; then break; fi
+            sleep 1
+          done
+          node -e "const j=require(process.argv[1]); if(j.ok!==true||j.providerConfigured.instagram!==false)process.exit(1)" "$RUNNER_TEMP/health.json"
+          WRONG=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://127.0.0.1:8080/api/login" -H "Content-Type: application/json" -d '{"password":"invalida"}')
+          test "$WRONG" = "401"
+          OK=$(curl -fsS -X POST "http://127.0.0.1:8080/api/login" -H "Content-Type: application/json" -d '{"password":"SenhaSomenteDeTesteGithub2026!"}')
+          SESSION=$(printf "%s" "$OK" | node -e "let s=''; process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>process.stdout.write(JSON.parse(s).session))")
+          test -n "$SESSION"
+          ACCESS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8080/api/accounts" -H "Authorization: Bearer $SESSION")
+          test "$ACCESS" = "200"
+          NO_CREDS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://127.0.0.1:8080/api/oauth/start/instagram" -H "Authorization: Bearer $SESSION")
+          test "$NO_CREDS" = "409"
+          PRECHECK=$(curl -s -o /dev/null -w "%{http_code}" -X GET "http://127.0.0.1:8080/api/accounts")
+          test "$PRECHECK" = "401"
+          echo "Testes básicos de API concluídos."
