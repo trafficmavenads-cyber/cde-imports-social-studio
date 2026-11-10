@@ -1,3 +1,20 @@
+## Roteamento automático de legendas para posts por rede
+
+A seção **Posts por rede social** em `site/drafts.js` recebe as legendas geradas pelo Gemini ou pelo gerador local por meio de `CDEDraftRouter.sync`. Cada destino selecionado tem seu próprio rascunho local, mantido em `localStorage` (`cde-imports-network-drafts-v1`). Ao escolher outra versão em `site/ai.js`, o rascunho correspondente é atualizado sem sobrescrever as outras redes. O usuário pode editar o texto, copiar e agendar um post pela interface. Após agendamento pelo fluxo da campanha, o post é identificado como **no calendário interno**; não é marcado como publicado.
+
+**Importante:** isso não publica remotamente. As legendas e o agendamento ficam no navegador do operador. O Render Free não mantém uma fila de execução confiável após suspensão/redeploy e as conexões OAuth existentes são temporárias. Para publicar sem o navegador aberto, futuramente será preciso persistência e um executor agendado, além do upload seguro de mídia.
+
+### Requisitos de publicação real, por rede
+
+- **TikTok:** adicionar **Content Posting API / Direct Post**, obter aprovação do escopo `video.publish`, solicitar autorização novamente ao usuário e implementar envio da mídia, verificação de estado e UI de consentimento explícito para cada publicação. Uma aprovação apenas de `user.info.basic` do Login Kit não serve para publicar. Consulte https://developers.tiktok.com/docs/en/content-posting-api-get-started .
+- **Instagram:** conta profissional e permissão `instagram_business_content_publish`, aprovação aplicável e fluxo de `media` + `media_publish` com mídia acessível ao servidor, contemplando limitações de cada formato. Consulte https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/content-publishing .
+- **Pinterest:** aprovação da API, OAuth com `pins:write` e quadro de destino escolhido pelo usuário; criação de Pins via API. Consulte https://developers.pinterest.com/docs/work-with-organic-content-and-users/create-boards-and-pins/ .
+- **YouTube Shorts:** OAuth com `youtube.upload` e envio de vídeo válido pela API de upload. Consulte https://developers.google.com/youtube/v3/docs/videos/insert .
+- **WhatsApp Grupos / Status:** o painel permanece em compartilhamento assistido; não oferece publicação automática em grupos nem no Status.
+
+Os conteúdos gerados não devem ser enviados silenciosamente às redes; o usuário precisa revisar e autorizar os posts, e o aplicativo deve registrar o estado retornado pelo provedor. **Nunca marcar publicação como concluída sem confirmação da plataforma.**
+
+---
 ## Assistente de conteúdo — legendas, hashtags e insights
 
 O painel possui gerador **local e gratuito** de 2 versões de legenda para cada rede selecionada, sugestões de hashtags e ideias de pauta. Não é um modelo generativo: funciona com regras e texto do produto. As versões escolhidas por rede são salvas individualmente nas campanhas do navegador; se o usuário alterar o título, diferenciais, objetivo, tom ou redes depois de gerar, deverá gerar novamente. O botão de usar no texto principal só altera o editor principal, não a seleção individual de cada rede.
