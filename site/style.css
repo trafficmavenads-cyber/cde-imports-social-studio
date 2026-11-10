@@ -167,3 +167,28 @@ button[hidden],input[hidden],label[hidden]{display:none!important}
 .ai-insight-note{border-left:3px solid #3286d8;padding-left:10px;font-size:12px;line-height:1.6;color:#244c7c}
 @media(max-width:900px){.ai-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.ai-controls,.ai-stats-grid{grid-template-columns:1fr}.ai-panel{padding:13px}.ai-actions button{flex:1 1 100%}.ai-variant-actions button{flex:1 1 100%}}
+
+
+/* Post directories: Gemini captions are routed into network-specific local drafts. */
+#destinos{scroll-margin-top:18px}
+.network-drafts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;align-items:start}
+.network-drafts>.empty{grid-column:1/-1}
+.network-draft-folder{background:linear-gradient(175deg,#f7fbff,#fff);border:1px solid #cfdeef;border-radius:14px;padding:15px;min-width:0}
+.network-draft-title{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid #dce6f3;padding-bottom:11px;margin-bottom:12px}
+.network-draft-title h3{font-size:15px;color:#102d63;margin:0}
+.network-draft-title span{color:#607b9f;font-size:11px;font-weight:700}
+.network-draft-post{border:1px solid #dce7f5;background:#fff;border-radius:10px;padding:13px;margin-bottom:11px;min-width:0}
+.network-draft-post:last-child{margin-bottom:0}
+.network-draft-post-head{display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.network-draft-post-head strong{font-size:13px;color:#213e66}
+.network-draft-post-head small{font-size:10px;border-radius:999px;padding:5px 9px;font-weight:800;white-space:nowrap}
+.draft-is-scheduled{color:#127055;background:#e7f7f1}
+.draft-is-local{color:#805608;background:#fff1d1}
+.network-draft-post label{font-size:12px;color:#526a88;font-weight:700;display:block}
+.network-draft-post textarea{resize:vertical;min-height:115px;line-height:1.55;background:#fafdff;border:1px solid #d2e0f1;padding:10px;border-radius:9px;width:100%;display:block;margin-top:6px;font-size:12px;color:#263d5e}
+.network-draft-post textarea:focus{border-color:#1680e5;outline:2px solid #1680e525}
+.network-draft-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}
+.network-draft-buttons button{font-size:11px;flex:1 1 auto;padding:8px 10px}
+.network-draft-post .ai-tip{display:block;color:#6c7891;line-height:1.5;margin:8px 0 0;font-size:11px}
+@media(max-width:1050px){.network-drafts{grid-template-columns:1fr}}
+@media(max-width:550px){.network-draft-folder{padding:10px}.network-draft-buttons button{flex:1 1 45%}}
