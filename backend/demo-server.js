@@ -12,6 +12,7 @@
  */
 const http=require('node:http');
 const crypto=require('node:crypto');
+const {createPublisher}=require('./instagram-publisher.js');
 const PORT=Number(process.env.PORT||10000);
 const SITE_URL='https://trafficmavenads-cyber.github.io/cde-imports-social-studio/';
 const API_BASE='https://cde-imports-social-demo.onrender.com';
@@ -22,7 +23,9 @@ const ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||'';
 const SCOPES=(process.env.TIKTOK_SCOPES||'user.info.basic').trim();
 const INSTAGRAM_CLIENT_ID=(process.env.INSTAGRAM_CLIENT_ID||'').trim();
 const INSTAGRAM_CLIENT_SECRET=(process.env.INSTAGRAM_CLIENT_SECRET||'').trim();
-const INSTAGRAM_SCOPES=(process.env.INSTAGRAM_SCOPES||'instagram_business_basic').trim();
+// Instagram publishing needs both business scopes; preserve any explicitly added scopes.
+const INSTAGRAM_SCOPES=[...new Set([(process.env.INSTAGRAM_SCOPES||'').trim(),'instagram_business_basic','instagram_business_content_publish']
+ .join(',').split(/[,\s]+/).filter(Boolean))].join(',');
 const enabled=Boolean(CLIENT_ID&&CLIENT_SECRET&&ADMIN_PASSWORD.length>=16);
 const instagramEnabled=Boolean(INSTAGRAM_CLIENT_ID&&INSTAGRAM_CLIENT_SECRET&&ADMIN_PASSWORD.length>=16);
 // Gemini is the default: never activate the paid OpenAI provider by accident.
@@ -40,6 +43,7 @@ const states=new Map();
 const connections=new Map();
 const attempts=new Map();
 const aiLimits=new Map();
+const instagramPublisher=createPublisher({getAccount:session=>connectionFor(session,'instagram'),callMeta:instagramJson});
 const secret=crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
 const fresh=()=>crypto.randomBytes(32).toString('base64url');
 const sha=x=>crypto.createHash('sha256').update(String(x)).digest('hex');
@@ -122,7 +126,7 @@ async function handler(req,res){
  }
  if(req.method==='GET'&&url==='/api/health'){
   return reply(req,res,200,{
-   ok:true,service:'CDE Imports Social Studio',version:'0.12.0',
+   ok:true,service:'CDE Imports Social Studio',version:'0.13.0',
    mode:authEnabled?'oauth-temporary':'demo',demoMode:!authEnabled,temporaryStorage:true,
    providerConfigured:{instagram:instagramEnabled,tiktok:enabled,pinterest:false,youtube:false},
    aiConfigured:aiEnabled,aiProvider:aiEnabled?AI_PROVIDER:null,aiModel:aiEnabled?(AI_PROVIDER==='gemini'?GEMINI_MODEL:AI_MODEL):null,aiEndpoint:'/api/ai/captions',
@@ -194,10 +198,15 @@ async function handler(req,res){
    const profile=await instagramJson(u.toString(),{headers:{Authorization:'Bearer '+short.access_token}});
    const id=String(profile.id||short.user_id||'');
    if(!id)throw Error('Identificação do Instagram ausente');
+   // The token response, not requested OAuth scopes, tells us what was actually granted.
+   const rawPermissions=short.permissions;
+   const granted=Array.isArray(rawPermissions)?rawPermissions:
+     typeof rawPermissions==='string'?rawPermissions.split(/[,\s]+/):[];
+   const grantedScopes=granted.map(x=>String(x).trim()).filter(Boolean);
    updateConnection(tx.session,'instagram',{
     openId:id,name:profile.username?'@'+profile.username:'Conta Instagram',
     connectedAt:new Date().toISOString(),expiresAt:Date.now()+Math.max(1,Number(short.expires_in)||3600)*1000,
-    scopes:INSTAGRAM_SCOPES,accessToken:short.access_token
+    scopes:grantedScopes.join(','),accessToken:short.access_token
    });
    return redirect(res,'linked','instagram');
   }catch(err){
@@ -208,6 +217,14 @@ async function handler(req,res){
  const session=sessionKey(req);
  if(!session)return reply(req,res,401,{error:'Sessão administrativa expirada. Entre novamente.'});
  if(req.method==='GET'&&url==='/api/accounts')return reply(req,res,200,{accounts:accountRows(session),temporaryStorage:true});
+ if(req.method==='POST'&&['/api/instagram/publish/prepare','/api/instagram/publish/status','/api/instagram/publish/confirm'].includes(url)){
+  if(!instagramEnabled)return reply(req,res,409,{error:'Adicione INSTAGRAM_CLIENT_ID e INSTAGRAM_CLIENT_SECRET no Render.'});
+  const input=await getBody(req);
+  const outcome=url.endsWith('/prepare')?await instagramPublisher.prepare(session,input):
+   url.endsWith('/status')?await instagramPublisher.checkStatus(session,input):
+   await instagramPublisher.confirm(session,input);
+  return reply(req,res,outcome.code,outcome.body);
+ }
  if(req.method==='POST'&&url==='/api/ai/captions'){
   if(!aiEnabled)return reply(req,res,409,{error:'IA online não está configurada. Use o gerador gratuito local.'});
   const prev=aiLimits.get('global'),now=Date.now();
