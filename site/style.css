@@ -192,3 +192,15 @@ button[hidden],input[hidden],label[hidden]{display:none!important}
 .network-draft-post .ai-tip{display:block;color:#6c7891;line-height:1.5;margin:8px 0 0;font-size:11px}
 @media(max-width:1050px){.network-drafts{grid-template-columns:1fr}}
 @media(max-width:550px){.network-draft-folder{padding:10px}.network-draft-buttons button{flex:1 1 45%}}
+
+
+/* Instagram content publishing: prepare -> check media -> human-confirmed publish. */
+.ig-publish-box{border:1px solid #c9d9ee;background:linear-gradient(160deg,#f0f7ff,#fff);border-radius:10px;padding:13px;margin:12px 0}
+.ig-publish-box>strong{display:block;color:#153a72;font-size:13px;margin-bottom:7px}
+.ig-publish-box label{display:block;font-size:12px;font-weight:700;color:#345678}
+.ig-publish-box input[data-ig-media-url]{display:block;width:100%;padding:9px 10px;border-radius:8px;margin:6px 0 8px;background:white;color:#173761;border:1px solid #bccde4;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ig-publish-box input[data-ig-media-url]:focus{outline:2px solid #b4dbff;border-color:#3985d2}
+.ig-publish-state{display:block;color:#49678f;font-size:11px;margin:8px 0}
+.ig-publish-box .network-draft-buttons{margin:10px 0}
+.ig-publish-box .network-draft-buttons button{flex:1 1 120px}
+.ig-publish-box .ai-tip{margin-bottom:0}
