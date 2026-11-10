@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+!.env.exemplo
+node_modules/
+**/data/
+**/vault.enc
+**/jobs.json
+.DS_Store
+*.log
+*.zip
