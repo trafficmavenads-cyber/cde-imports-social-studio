@@ -33,6 +33,15 @@ Qualidade, variedade e condições especiais. Confira os detalhes e garanta o se
 </div>
 <div class="connection-setup-head"><strong><span class="step-number">3</span> Contas e permissões</strong><small>Cada rede confirma a autorização separadamente. Nenhuma senha da rede social é solicitada por este site.</small></div>
 <div class="tiktok-config-guide">
+ <div class="tiktok-guide-title"><strong>◎ Instagram — API com login do Instagram (teste gratuito)</strong><span id="instagram-config-status">Aguardando credenciais do aplicativo</span></div>
+ <p>Use uma <strong>conta profissional (Empresa ou Criador)</strong>. No <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">Meta for Developers</a>, crie ou abra o aplicativo e configure o produto <strong>Instagram → API setup with Instagram Login</strong>. Não utilize as credenciais do Facebook Login: o Instagram Login possui seu próprio ID e segredo.</p>
+ <p>Cadastre em <strong>Business Login settings → OAuth redirect URIs</strong> este endereço HTTPS, exatamente como mostrado:</p>
+ <div class="tiktok-callback"><code>https://cde-imports-social-demo.onrender.com/api/oauth/callback/instagram</code><button type="button" class="secondary" id="copy-instagram-callback">Copiar URL</button></div>
+ <p>No <a href="https://dashboard.render.com/web/srv-dbpkmi56e07s73d9fci0" target="_blank" rel="noopener">Render → Environment</a>, configure <code>INSTAGRAM_CLIENT_ID</code> (Instagram App ID), <code>INSTAGRAM_CLIENT_SECRET</code> (Instagram App Secret) e a <code>ADMIN_PASSWORD</code> administrativa com 16 ou mais caracteres. Guarde os segredos <strong>apenas no Render</strong>; não envie aqui nem para o GitHub.</p>
+ <p>Permissão inicial: <code>instagram_business_basic</code>. O login e a identificação do perfil podem ser testados sem a função de publicar. Para enviar imagens e Reels no futuro, será preciso adicionar <code>instagram_business_content_publish</code> e atender aos requisitos da Meta. O plano gratuito usa tokens temporários em memória.</p>
+ <div class="tiktok-guide-actions"><a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener" class="secondary">Abrir Meta for Developers ↗</a><a href="https://dashboard.render.com/web/srv-dbpkmi56e07s73d9fci0" target="_blank" rel="noopener" class="secondary">Abrir Render Environment ↗</a></div>
+</div>
+<div class="tiktok-config-guide">
  <div class="tiktok-guide-title"><strong>♪ TikTok — conexão oficial (teste gratuito)</strong><span id="tiktok-config-status">Aguardando credenciais do aplicativo</span></div>
  <p>O código já está integrado. Para habilitar o Login Kit, registre no TikTok Developers esta <strong>Redirect URI</strong>:</p>
  <div class="tiktok-callback"><code id="tiktok-callback-url">https://cde-imports-social-demo.onrender.com/api/oauth/callback/tiktok</code><button type="button" class="secondary" id="copy-tiktok-callback">Copiar URL</button></div>
