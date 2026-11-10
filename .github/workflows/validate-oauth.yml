@@ -28,8 +28,9 @@ jobs:
           node --check site/connections.js
           node --check backend/demo-server.js
           node --check backend/test/tiktok-free.test.js
+          node --check backend/test/instagram-free.test.js
       - name: Testar login TikTok e recusas de acesso sem conexão real
-        run: node --test backend/test/tiktok-free.test.js
+        run: node --test backend/test/tiktok-free.test.js backend/test/instagram-free.test.js
       - name: Testar login, sessão e API sem credenciais reais
         shell: bash
         run: |
