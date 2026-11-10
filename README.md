@@ -1,6 +1,16 @@
-# CDE Imports — Social Studio + Extensão + Conector (projeto para GitHub)
+# CDE Imports Social Studio — versão 0.8 (conexão de contas)
 
-**Situação da entrega:** repositório **preparado** para publicação. **Não foi enviado para uma conta GitHub nem colocado no ar automaticamente.**
+**Situação em 10/11/2026:** painel web publicado em [GitHub Pages](https://trafficmavenads-cyber.github.io/cde-imports-social-studio/). A versão 0.8 adiciona uma área real de conexão OAuth com Instagram, TikTok, Pinterest e YouTube e prepara um gateway Node.js em `backend/`. **O gateway ainda precisa de hospedagem HTTPS, disco persistente e credenciais oficiais. Nenhuma conta está conectada automaticamente; login por OAuth e publicação são etapas distintas.**
+
+- Interface de conexão: `site/connections.js` e seção **Conexões** do painel.
+- Gateway Node: `backend/server.js` (OAuth, sessões de administração, tokens criptografados, consulta/desconexão).
+- Modelo para hospedagem: `render.yaml`.
+- Passo a passo e variáveis: [backend/README.md](backend/README.md).
+- Validação automática de segurança básica: `.github/workflows/validate-oauth.yml`.
+
+**Para conectar suas contas:** hospede o backend e cadastre, para cada rede, um aplicativo desenvolvedor com Client ID, Client Secret e URL de retorno; depois configure o domínio do backend na seção **Conexões** do painel. Nunca coloque senhas ou tokens no GitHub Pages ou neste repositório público.
+
+---
 
 Este pacote contém três componentes distintos:
 
