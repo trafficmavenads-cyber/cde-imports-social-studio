@@ -125,7 +125,9 @@ async function startOAuth(id){
  try{
   const r=await request('/api/oauth/start/'+encodeURIComponent(id),{method:'POST'});
   const u=new URL(r.authorizationUrl);
-  if(!['www.instagram.com','www.tiktok.com','www.pinterest.com','accounts.google.com'].includes(u.hostname)||u.protocol!=='https:')throw Error('A rede social devolveu um destino inválido.');
+  const allowed={instagram:[['www.facebook.com','/dialog/oauth'],['www.instagram.com','/oauth/authorize']],tiktok:[['www.tiktok.com','/v2/auth/authorize/']]};
+  const routes=allowed[id]||[];
+  if(u.protocol!=='https:'||u.username||u.password||u.port||!routes.some(([host,prefix])=>u.hostname===host&&u.pathname===prefix))throw Error('A rede social devolveu um destino inválido.');
   window.location.assign(u.href);
  }catch(e){show(e.message,true);setBusy(false);}
 }
