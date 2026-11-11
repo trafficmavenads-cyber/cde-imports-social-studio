@@ -2,7 +2,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='cde-instagram-bulk-v1',DB='cde-instagram-media-v1';
-const MAX_ITEMS=60,MAX_FILE_SIZE=24*1024*1024;
+const MB=1024*1024,MAX_ITEMS=60,MAX_IMAGE_SOURCE=50*MB,MAX_REELS=300*MB,MAX_STORY_VIDEO=100*MB;
 const states={draft:'Rascunho',scheduled:'Agendado no navegador',running:'Enviando para Meta',
  published:'Publicado (confirmado pela Meta)',attention:'Verificar — não confirmado'};
 let queue=[],selected=[],previews=[],busy=new Set(),dbPromise=null;
@@ -71,7 +71,16 @@ function possible(format,files){
  if(!files.length)return 'Selecione pelo menos uma imagem ou vídeo.';
  if(files.some(x=>!['image/jpeg','image/png','image/webp','video/mp4'].includes(x.type)))
   return 'Formato não aceito. Use JPEG, PNG, WEBP ou MP4.';
- if(files.some(x=>x.size>MAX_FILE_SIZE))return 'O Render Free aceita no máximo 24 MB por vídeo; use uma URL pública para arquivos maiores.';
+ for(const file of files){
+  if(file.type.startsWith('image/')&&file.size>MAX_IMAGE_SOURCE)
+   return 'A foto original ultrapassa 50 MB. Reduza antes de adicionar ao lote.';
+  if(file.type==='video/mp4'){
+   const maxVideo=['STORIES','CAROUSEL'].includes(format)?MAX_STORY_VIDEO:MAX_REELS;
+   if(file.size>maxVideo)return format==='STORIES'||format==='CAROUSEL'?
+    'Stories e carrosséis aceitam vídeos até 100 MB por arquivo. Comprima o vídeo ou utilize Reels.':
+    'Reels aceita até 300 MB por arquivo. Comprima vídeos maiores ou use um link público direto.';
+  }
+ }
  if(format==='CAROUSEL'){
   if(files.length<2||files.length>10)return 'O carrossel precisa de 2 a 10 fotos/vídeos.';
  }else if(format==='REELS'&&files.some(x=>x.type!=='video/mp4'))return 'Reels exige vídeos MP4.';
@@ -212,7 +221,10 @@ async function addToQueue(){
  if(format!=='STORIES'&&!caption)return notice('Informe uma legenda. Para Stories, o texto pode ser incorporado na imagem.',true);
  if(format==='STORIES'&&selected.length&&selected.some(x=>x.type==='video/mp4')&&(text||cta))
   notice('A sobreposição de texto se aplica somente às imagens; vídeo precisa ser editado antes do upload.');
- const button=$('ig-bulk-add');button.disabled=true;
+ if(selected.some(x=>x.size>100*MB)){
+  notice('Vídeos grandes são guardados no navegador e podem consumir bastante espaço. Se o navegador não armazenar o arquivo, use uma URL pública.',false);
+ }
+  const button=$('ig-bulk-add');button.disabled=true;
  try{
   const refs=[];
   for(const file of selected){
