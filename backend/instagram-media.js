@@ -158,6 +158,16 @@ function createMediaStore({apiBase}){
   stream.pipe(res);
   return true;
  }
- return {stage,serve,release};
+ function getOwned(session,mediaUrl){
+  if(typeof mediaUrl!=='string')return null;
+  let parsed;
+  try{parsed=new URL(mediaUrl);}catch{return null;}
+  if(parsed.origin!==new URL(apiBase).origin)return null;
+  const match=/^\/api\/instagram\/media\/([a-f0-9]{48})\.(jpg|mp4)$/.exec(parsed.pathname);
+  if(!match)return null;
+  const f=files.get(match[1]);
+  return f&&f.owner===session&&f.expires>Date.now()&&fs.existsSync(f.path)?f:null;
+ }
+ return {stage,serve,release,getOwned};
 }
 module.exports={createMediaStore,MAX_JPEG_BYTES,MAX_MP4_BYTES};
