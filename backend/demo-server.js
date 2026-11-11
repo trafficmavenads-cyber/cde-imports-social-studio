@@ -289,6 +289,11 @@ async function handler(req,res){
  const session=sessionKey(req);
  if(!session)return reply(req,res,401,{error:'Sessão administrativa expirada. Entre novamente.'});
  if(req.method==='GET'&&url==='/api/accounts')return reply(req,res,200,{accounts:accountRows(session),temporaryStorage:true});
+ if(req.method==='POST'&&url==='/api/instagram/media/release'){
+  const input=await getBody(req);
+  const result=await instagramImages.release(session,input.mediaUrls);
+  return reply(req,res,result.code,result.body);
+ }
  if(req.method==='POST'&&url==='/api/instagram/media/upload'){
   const result=await instagramImages.stage(req,session);
   return reply(req,res,result.code,result.body);
