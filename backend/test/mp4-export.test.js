@@ -27,3 +27,33 @@ test('Verifica contêiner MP4 real e átomo moov antes de mdat',async()=>{
  const same=await convertToMP4(good,{native:true});
  assert.strictEqual(same,good,'Um MP4 H264/AAC já correto não deve sofrer conversão desnecessária');
 });
+
+
+test('Quando só há WebM, a conversão gera H.264/AAC e MP4 com faststart',async()=>{
+ const fetchBefore=globalThis.fetch,ffmpegBefore=globalThis.FFmpegWASM;
+ const commands=[];
+ const output=Buffer.concat([ftyp,moov,mdat]);
+ class FakeFFmpeg{
+  async load(config){assert.ok(config.classWorkerURL&&config.coreURL&&config.wasmURL);}
+  async writeFile(name,data){assert.equal(name,'cde-source.webm');assert.ok(data.byteLength);}
+  async exec(args){commands.push(args);return 0;}
+  async readFile(name){assert.equal(name,'cde-result.mp4');return output;}
+  terminate(){}
+ }
+ globalThis.FFmpegWASM={FFmpeg:FakeFFmpeg};
+ globalThis.fetch=async()=>new Response(new Uint8Array([1,2,3]),{status:200});
+ try{
+  const media=new Blob([Buffer.from([0x1a,0x45,0xdf,0xa3,5,6,7,8])],{type:'video/webm'});
+  const result=await convertToMP4(media,{native:false});
+  assert.equal(result.type,'video/mp4');
+  assert.deepEqual(await examineMP4(result),{valid:true,fastStart:true});
+  assert.equal(commands.length,1);
+  assert.ok(commands[0].includes('libx264'));
+  assert.ok(commands[0].includes('aac'));
+  assert.ok(commands[0].includes('+faststart'));
+ }finally{
+  globalThis.fetch=fetchBefore;
+  if(ffmpegBefore===undefined)delete globalThis.FFmpegWASM;
+  else globalThis.FFmpegWASM=ffmpegBefore;
+ }
+});
