@@ -191,6 +191,7 @@ window.CDEInstagramPublisher={
   if(!r.ok)throw Error(String(data.error||'Não foi possível enviar o arquivo.').slice(0,220));
   return data;
  },
+ releaseMedia:async mediaUrls=>request('/api/instagram/media/release',{method:'POST',body:JSON.stringify({mediaUrls})}),
  uploadImage:async blob=>window.CDEInstagramPublisher.uploadMedia(blob),
  prepare:async ({kind,mediaUrl,caption,items})=>request('/api/instagram/publish/prepare',{method:'POST',body:JSON.stringify({kind,mediaUrl,caption,items})}),
  checkStatus:async jobId=>request('/api/instagram/publish/status',{method:'POST',body:JSON.stringify({jobId})}),
