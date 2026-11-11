@@ -14,6 +14,7 @@ const http=require('node:http');
 const crypto=require('node:crypto');
 const {createPublisher}=require('./instagram-publisher.js');
 const {createMediaStore}=require('./instagram-media.js');
+const {createYoutubePublisher}=require('./youtube-publisher.js');
 const PORT=Number(process.env.PORT||10000);
 const SITE_URL='https://trafficmavenads-cyber.github.io/cde-imports-social-studio/';
 const API_BASE='https://cde-imports-social-demo.onrender.com';
@@ -21,6 +22,10 @@ const FRONT_ORIGIN=new URL(SITE_URL).origin;
 const CLIENT_ID=(process.env.TIKTOK_CLIENT_ID||'').trim();
 const CLIENT_SECRET=(process.env.TIKTOK_CLIENT_SECRET||'').trim();
 const ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||'';
+const GOOGLE_CLIENT_ID=(process.env.GOOGLE_CLIENT_ID||'').trim();
+const GOOGLE_CLIENT_SECRET=(process.env.GOOGLE_CLIENT_SECRET||'').trim();
+const youtubeEnabled=Boolean(GOOGLE_CLIENT_ID&&GOOGLE_CLIENT_SECRET&&ADMIN_PASSWORD.length>=16);
+const YOUTUBE_SCOPES='https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload';
 const SCOPES=(process.env.TIKTOK_SCOPES||'user.info.basic').trim();
 const INSTAGRAM_CLIENT_ID=(process.env.INSTAGRAM_CLIENT_ID||'').trim();
 const INSTAGRAM_CLIENT_SECRET=(process.env.INSTAGRAM_CLIENT_SECRET||'').trim();
@@ -40,7 +45,7 @@ const GEMINI_MODEL=(process.env.GEMINI_MODEL||'gemini-3.5-flash-lite').trim();
 const AI_API_KEY=(process.env.OPENAI_API_KEY||'').trim();
 const AI_MODEL=(process.env.OPENAI_MODEL||'gpt-4.1-mini').trim();
 const aiEnabled=Boolean((AI_PROVIDER==='gemini'?GEMINI_API_KEY:AI_API_KEY)&&ADMIN_PASSWORD.length>=16);
-const authEnabled=enabled||instagramEnabled||aiEnabled;
+const authEnabled=enabled||instagramEnabled||aiEnabled||youtubeEnabled;
 const SESSION_MS=6*60*60*1000;
 const OAUTH_MS=10*60*1000;
 const sessions=new Map();
@@ -50,11 +55,13 @@ const attempts=new Map();
 const aiLimits=new Map();
 const instagramPublisher=createPublisher({getAccount:session=>connectionFor(session,'instagram'),callMeta:instagramJson});
 const instagramImages=createMediaStore({apiBase:API_BASE});
+const youtubePublisher=createYoutubePublisher({clientId:GOOGLE_CLIENT_ID,clientSecret:GOOGLE_CLIENT_SECRET,getAccount:s=>connectionFor(s,'youtube'),getOwnedMedia:(s,u)=>instagramImages.getOwned(s,u)});
 const secret=crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
 const fresh=()=>crypto.randomBytes(32).toString('base64url');
 const sha=x=>crypto.createHash('sha256').update(String(x)).digest('hex');
 const callback=API_BASE+'/api/oauth/callback/tiktok';
 const instagramCallback=API_BASE+'/api/oauth/callback/instagram';
+const youtubeCallback=API_BASE+'/api/oauth/callback/youtube';
 const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer'};
 function corsFor(req){return req.headers.origin===FRONT_ORIGIN?{'Access-Control-Allow-Origin':FRONT_ORIGIN,'Vary':'Origin'}:{};}
 function reply(req,res,code,body){res.writeHead(code,{...headers,...corsFor(req),'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(body));}
@@ -116,11 +123,11 @@ async function instagramJson(url,options={}){
 }
 function accountRows(key){
  return ['instagram','tiktok','pinterest','youtube'].map(id=>{
-  if(id!=='tiktok'&&id!=='instagram')return {id,configured:false,connected:false,status:'not_connected'};
+  if(!['tiktok','instagram','youtube'].includes(id))return {id,configured:false,connected:false,status:'not_connected'};
   const acc=connectionFor(key,id);
-  return {id,configured:id==='tiktok'?enabled:instagramEnabled,connected:Boolean(acc),status:acc?(acc.expiresAt<Date.now()?'reconnect_required':'connected'):'not_connected',
+  return {id,configured:id==='tiktok'?enabled:id==='youtube'?youtubeEnabled:instagramEnabled,connected:Boolean(acc),status:acc?(acc.expiresAt<Date.now()?'reconnect_required':'connected'):'not_connected',
    label:acc?.name||null,accountId:acc?.openId||null,connectedAt:acc?.connectedAt||null,
-   expiresAt:acc?.expiresAt||null,scopes:acc?(acc.scopes||''):(id==='tiktok'?SCOPES:instagramUnified?'instagram_basic,instagram_content_publish':INSTAGRAM_SCOPES),
+   expiresAt:acc?.expiresAt||null,scopes:acc?(acc.scopes||'') :(id==='tiktok'?SCOPES:id==='youtube'?YOUTUBE_SCOPES:instagramUnified?'instagram_basic,instagram_content_publish':INSTAGRAM_SCOPES),
    loginMode:id==='instagram'?(instagramUnified?'unified':'instagram'):null,grantSource:acc?.grantSource||null};
  });
 }
@@ -136,9 +143,9 @@ async function handler(req,res){
   return reply(req,res,200,{
    ok:true,service:'CDE Imports Social Studio',version:'0.15.0',
    mode:authEnabled?'oauth-temporary':'demo',demoMode:!authEnabled,temporaryStorage:true,
-   providerConfigured:{instagram:instagramEnabled,tiktok:enabled,pinterest:false,youtube:false},
+   providerConfigured:{instagram:instagramEnabled,tiktok:enabled,pinterest:false,youtube:youtubeEnabled},
    aiConfigured:aiEnabled,aiProvider:aiEnabled?AI_PROVIDER:null,aiModel:aiEnabled?(AI_PROVIDER==='gemini'?GEMINI_MODEL:AI_MODEL):null,aiEndpoint:'/api/ai/captions',
-   callbackUrl:callback,instagramCallbackUrl:instagramCallback,instagramLoginMode:instagramUnified?'unified':'instagram',
+   callbackUrl:callback,instagramCallbackUrl:instagramCallback,youtubeCallbackUrl:youtubeCallback,instagramLoginMode:instagramUnified?'unified':'instagram',
    scopes:SCOPES,instagramScopes:INSTAGRAM_SCOPES,
    message:authEnabled?'Autorização temporária habilitada para as redes configuradas. Tokens são mantidos apenas na memória do Render Free.':'Render Free: configure credenciais de aplicativo e senha administrativa para habilitar o teste OAuth.',
    serverTime:new Date().toISOString()
@@ -286,9 +293,45 @@ async function handler(req,res){
    return redirect(res,'failed','instagram');
   }
  }
+ const youtubePath='/api/oauth/callback/youtube';
+ if(req.method==='GET'&&url===youtubePath){
+  const state=path.searchParams.get('state')||'';
+  const tx=states.get(state);states.delete(state);
+  if(!tx||tx.provider!=='youtube'||tx.expires<=Date.now()||!sessions.has(tx.session))return redirect(res,'invalid_state','youtube');
+  if(path.searchParams.has('error')||!path.searchParams.get('code'))return redirect(res,'denied','youtube');
+  try{
+   const tokenResponse=await fetch('https://oauth2.googleapis.com/token',{
+    method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:GOOGLE_CLIENT_ID,client_secret:GOOGLE_CLIENT_SECRET,
+     code:path.searchParams.get('code'),grant_type:'authorization_code',redirect_uri:youtubeCallback})
+   });
+   if(!tokenResponse.ok)throw Error('Falha na troca OAuth do Google.');
+   const tokens=await tokenResponse.json();
+   if(!tokens.access_token||!String(tokens.scope||'').includes('youtube.upload'))throw Error('Permissão de upload não concedida.');
+   const response=await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',{
+    redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+tokens.access_token}});
+   if(!response.ok)throw Error('Falha ao identificar o canal YouTube.');
+   const channels=await response.json();
+   if(!Array.isArray(channels.items)||channels.items.length!==1||!channels.items[0].id)throw Error('Selecione uma conta com canal YouTube válido.');
+   const channel=channels.items[0];
+   updateConnection(tx.session,'youtube',{
+    openId:String(channel.id),name:String(channel.snippet?.title||'Canal YouTube'),
+    connectedAt:new Date().toISOString(),expiresAt:Date.now()+(Number(tokens.expires_in)||3600)*1000,
+    scopes:String(tokens.scope||''),accessToken:tokens.access_token,refreshToken:tokens.refresh_token||null
+   });
+   return redirect(res,'linked','youtube');
+  }catch(err){console.error('Falha na autorização YouTube:',err.name);return redirect(res,'failed','youtube');}
+ }
  const session=sessionKey(req);
  if(!session)return reply(req,res,401,{error:'Sessão administrativa expirada. Entre novamente.'});
  if(req.method==='GET'&&url==='/api/accounts')return reply(req,res,200,{accounts:accountRows(session),temporaryStorage:true});
+ if(req.method==='POST'&&url==='/api/youtube/shorts/publish'){
+  if(!youtubeEnabled)return reply(req,res,409,{error:'Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no Render.'});
+  const input=await getBody(req);
+  const result=await youtubePublisher.publish(session,input);
+  return reply(req,res,result.code,result.body);
+ }
  if(req.method==='POST'&&url==='/api/instagram/media/release'){
   const input=await getBody(req);
   const result=await instagramImages.release(session,input.mediaUrls);
@@ -366,6 +409,15 @@ async function handler(req,res){
    return reply(req,res,502,{error:'A geração online não ficou disponível. Tente novamente ou utilize sugestões locais.'});
   }
  }
+ if(req.method==='POST'&&url==='/api/oauth/start/youtube'){
+  if(!youtubeEnabled)return reply(req,res,409,{error:'Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no Render.'});
+  if(states.size>100)return reply(req,res,429,{error:'Muitas autorizações pendentes.'});
+  const state=fresh();states.set(state,{provider:'youtube',session,expires:Date.now()+OAUTH_MS});
+  const u=new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  for(const [k,v] of Object.entries({client_id:GOOGLE_CLIENT_ID,redirect_uri:youtubeCallback,
+    response_type:'code',scope:YOUTUBE_SCOPES,access_type:'offline',prompt:'consent',state}))u.searchParams.set(k,v);
+  return reply(req,res,200,{authorizationUrl:u.href});
+ }
  if(req.method==='POST'&&url==='/api/oauth/start/tiktok'){
   if(!enabled)return reply(req,res,409,{error:'Configure TIKTOK_CLIENT_ID e TIKTOK_CLIENT_SECRET no servidor.'});
   if(states.size>100)return reply(req,res,429,{error:'Muitas autorizações pendentes.'});
@@ -389,6 +441,10 @@ async function handler(req,res){
  if(req.method==='DELETE'&&url==='/api/accounts/instagram'){
   updateConnection(session,'instagram',null);
   return reply(req,res,200,{ok:true,notice:'Autorização do Instagram removida da memória do servidor de testes.'});
+ }
+ if(req.method==='DELETE'&&url==='/api/accounts/youtube'){
+  updateConnection(session,'youtube',null);
+  return reply(req,res,200,{ok:true,notice:'Canal YouTube desconectado deste servidor temporário.'});
  }
  if(req.method==='DELETE'&&url==='/api/accounts/tiktok'){
   updateConnection(session,'tiktok',null);
