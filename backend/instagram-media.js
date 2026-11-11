@@ -12,7 +12,7 @@ const MB=1024*1024;
 const MAX_JPEG_BYTES=8*MB;
 const MAX_MP4_BYTES=300*MB;
 const MAX_TOTAL=650*MB;
-const MAX_COUNT=12;
+const MAX_COUNT=60;
 const MAX_ACTIVE=2;
 const TTL_MS=90*60*1000;
 const BASE=path.join(os.tmpdir(),'cde-instagram-media');
@@ -75,7 +75,7 @@ function createMediaStore({apiBase}){
     throw Error('invalid-signature');
    if(occupied()+size>MAX_TOTAL)throw Error('storage-full');
    const expires=Date.now()+TTL_MS;
-   files.set(id,{path:filePath,size,isVideo:video,expires});
+   files.set(id,{path:filePath,size,isVideo:video,expires,owner:session});
    return {code:201,body:{
     mediaUrl:apiBase+'/api/instagram/media/'+id+extension,
     expiresAt:new Date(expires).toISOString(),
@@ -95,6 +95,22 @@ function createMediaStore({apiBase}){
   }finally{
    active--;reserved-=expected;
   }
+ }
+ async function release(session,urls){
+  if(!Array.isArray(urls)||urls.length>60)return {code:400,body:{error:'Lista de mídias inválida.'}};
+  let released=0,bytes=0;
+  for(const url of urls){
+   if(typeof url!=='string'||url.length>500)continue;
+   let pathname='';
+   try{const parsed=new URL(url);if(parsed.origin===new URL(apiBase).origin)pathname=parsed.pathname;}catch{}
+   const match=/^\/api\/instagram\/media\/([a-f0-9]{48})\.(jpg|mp4)$/.exec(pathname);
+   if(!match)continue;
+   const file=files.get(match[1]);
+   if(!file||file.owner!==session||file.isVideo!==(match[2]==='mp4'))continue;
+   files.delete(match[1]);released++;bytes+=file.size;
+   await fs.promises.unlink(file.path).catch(()=>{});
+  }
+  return {code:200,body:{released,bytes}};
  }
  function serve(req,res,pathname){
   const match=/^\/api\/instagram\/media\/([a-f0-9]{48})\.(jpg|mp4)$/.exec(pathname);
@@ -142,6 +158,6 @@ function createMediaStore({apiBase}){
   stream.pipe(res);
   return true;
  }
- return {stage,serve};
+ return {stage,serve,release};
 }
 module.exports={createMediaStore,MAX_JPEG_BYTES,MAX_MP4_BYTES};
