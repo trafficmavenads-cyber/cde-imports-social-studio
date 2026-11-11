@@ -9,6 +9,7 @@ const providers=[
 const $=id=>document.getElementById(id);
 const TIKTOK_CALLBACK='https://cde-imports-social-demo.onrender.com/api/oauth/callback/tiktok';
 const INSTAGRAM_CALLBACK='https://cde-imports-social-demo.onrender.com/api/oauth/callback/instagram';
+const YOUTUBE_CALLBACK='https://cde-imports-social-demo.onrender.com/api/oauth/callback/youtube';
 const SERVER_KEY='cde-social-api-base-v1',SESSION_KEY='cde-social-admin-session-v1',DEMO_URL='https://cde-imports-social-demo.onrender.com';
 let api='',session=sessionStorage.getItem(SESSION_KEY)||'',accounts=[],health=null,busy=false;
 function show(message,error=false){const m=$('api-message');m.textContent=message;m.className='api-message '+(error?'error':'');}
@@ -153,6 +154,7 @@ $('api-save').addEventListener('click',async()=>{
 });
 $('api-test').addEventListener('click',check);
 $('copy-tiktok-callback')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(TIKTOK_CALLBACK);show('URL de retorno copiada. Cole no Login Kit do TikTok Developers.');}catch{show('Copie a URL exibida no guia acima.',true);}});
+$('copy-youtube-callback')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(YOUTUBE_CALLBACK);show('URL do YouTube copiada. Cole no OAuth do Google Cloud.');}catch{show('Copie a URL exibida no guia do YouTube.',true);}});
 $('copy-instagram-callback')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(INSTAGRAM_CALLBACK);show('URL do Instagram copiada. Cole no campo OAuth redirect URI da Meta.');}catch{show('Selecione e copie a URL exibida no guia acima.',true);}});
 $('api-login').addEventListener('click',login);
 $('api-password').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
@@ -168,6 +170,13 @@ if(params.has('oauth_network')){
  params.delete('oauth_network');params.delete('oauth_result');
  history.replaceState(null,'',location.pathname+(params.size?'?'+params.toString():'')+location.hash);
 }
+window.CDEYouTubePublisher={
+ status:()=>{
+  const account=accounts.find(x=>x.id==='youtube');
+  return {configured:Boolean(health?.providerConfigured?.youtube),ready:Boolean(session&&account?.connected&&account.status==='connected'&&String(account.scopes||'').includes('youtube.upload')),channel:account?.label||null};
+ },
+ publish:input=>request('/api/youtube/shorts/publish',{method:'POST',body:JSON.stringify(input)})
+};
 window.CDEInstagramPublisher={
  status:()=>{
   const account=accounts.find(x=>x.id==='instagram');
