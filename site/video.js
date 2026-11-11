@@ -10,7 +10,7 @@ function status(message,error=false){info.textContent=message;info.style.color=e
 function message(msg,error=false){const m=byId("message");m.textContent=msg;m.style.color=error?"#b92344":"#175b98";}
 const prettySize=n=>n<1048576?`${Math.round(n/1024)} KB`:`${(n/1048576).toFixed(1)} MB`;
 function sync(){frame.dataset.format=byId("format").value;byId("video-footer").className="video-footer "+byId("watermark").value;}
-function switchMode(on){frame.hidden=!on;canvas.hidden=on;imageDownload.hidden=on;imageShare.hidden=on;exportBtn.hidden=!on;hint.textContent=on?"Vídeo com identidade visual CDE Imports. A gravação WebM é experimental; confirme o áudio e o resultado antes de publicar.":"O site insere o logo e domínio no topo e uma marca d’água discreta no rodapé.";sync();}
+function switchMode(on){frame.hidden=!on;canvas.hidden=on;imageDownload.hidden=on;imageShare.hidden=on;exportBtn.hidden=!on;hint.textContent=on?"Vídeo com identidade visual CDE Imports. Exportação em MP4 para Instagram, com marca CDE Imports. Confira o áudio e a imagem antes de publicar.":"O site insere o logo e domínio no topo e uma marca d’água discreta no rodapé.";sync();}
 function release(){video.pause();video.removeAttribute("src");video.load();if(videoURL)URL.revokeObjectURL(videoURL);videoURL=null;}
 async function loadVideo(f,recovered=false){
  if(exporting)return status("Conclua a exportação antes de trocar de vídeo.",true);
@@ -90,37 +90,103 @@ function drawBrand(ctx,w,h){
  ctx.font=`900 ${Math.round(w*.035)}px Arial`;ctx.textAlign="right";ctx.fillStyle="#ffd347";ctx.fillText("cdeimports.site",w*.96,top*.57);ctx.textAlign="left";
  ["#007fd8","#ed2346","#ffd339"].forEach((color,i)=>{ctx.fillStyle=color;ctx.fillRect(i*w/3,h-stripe,w/3+1,stripe);});
 }
-function download(blob,filename){const a=document.createElement("a"),uri=URL.createObjectURL(blob);a.href=uri;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(uri),30000);}
+function download(blob,filename){const a=document.createElement("a"),uri=URL.createObjectURL(blob);a.href=uri;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(uri),120000);}
+let audioCtx=null,audioSource=null,audioTarget=null;
+async function soundTrack(){
+ const Constructor=window.AudioContext||window.webkitAudioContext;
+ if(!Constructor)return null;
+ if(!audioCtx){
+  audioCtx=new Constructor();
+  audioSource=audioCtx.createMediaElementSource(video);
+  audioTarget=audioCtx.createMediaStreamDestination();
+  audioSource.connect(audioTarget);
+  audioSource.connect(audioCtx.destination);
+ }
+ if(audioCtx.state==='suspended')await audioCtx.resume();
+ return audioTarget.stream.getAudioTracks()[0]||null;
+}
 async function exportVideo(){
  if(!selected||!loaded)return status("Selecione primeiro um vídeo válido.",true);
  if(exporting)return;
- if(typeof MediaRecorder==="undefined"||!HTMLCanvasElement.prototype.captureStream)return status("Para exportar WebM, abra no Chrome ou Edge atualizado.",true);
- if(!Number.isFinite(video.duration)||video.duration>240||video.duration<=0)return status("Exportação: vídeo de até quatro minutos. O upload e o agendamento permitem vídeos mais longos.",true);
- const mime=["video/webm;codecs=vp8,opus","video/webm;codecs=vp8","video/webm"].find(x=>MediaRecorder.isTypeSupported(x));
- if(!mime)return status("Este navegador não oferece codificação WebM.",true);
- exporting=true;exportBtn.disabled=true;exportBtn.textContent="Gerando vídeo...";
+ if(!window.CDEMP4||typeof MediaRecorder==="undefined"||!HTMLCanvasElement.prototype.captureStream)
+  return status("A exportação MP4 exige Chrome ou Edge atualizado e a biblioteca de conversão.",true);
+ if(!Number.isFinite(video.duration)||video.duration>240||video.duration<=0)
+  return status("Exportação MP4 disponível para vídeos de até 4 minutos. Para vídeos mais longos, carregue diretamente o MP4 original na Central do Instagram.",true);
+ let mime=window.CDEMP4.chooseRecorderMime(MediaRecorder);
+ if(!mime)return status("O navegador não oferece gravação de vídeo compatível. Atualize o Chrome ou Edge.",true);
+ exporting=true;exportBtn.disabled=true;exportBtn.textContent="Preparando MP4...";
  const fmt=byId("format").value,[w,h]=fmt==="square"?[720,720]:fmt==="pin"?[720,1080]:[720,1280];
- const stage=document.createElement("canvas");stage.width=w;stage.height=h;const ctx=stage.getContext("2d");
- let raf=0,recorder=null;
- const frameDraw=()=>{ctx.fillStyle="#071941";ctx.fillRect(0,0,w,h);const top=Math.round(h*.14),bottom=Math.round(h*.11);drawCover(ctx,0,top,w,h-top-bottom);drawBrand(ctx,w,h);raf=requestAnimationFrame(frameDraw);};
+ const stage=document.createElement("canvas");stage.width=w;stage.height=h;
+ const ctx=stage.getContext("2d");
+ let raf=0,recorder=null,stream=null,recordError=null;
+ const draw=()=>{
+  ctx.fillStyle="#071941";ctx.fillRect(0,0,w,h);
+  const top=Math.round(h*.14),bottom=Math.round(h*.11);
+  drawCover(ctx,0,top,w,h-top-bottom);drawBrand(ctx,w,h);
+  raf=requestAnimationFrame(draw);
+ };
  try{
+  if(!ctx)throw Error("Não foi possível iniciar o editor MP4.");
   video.pause();video.currentTime=0;
-  await new Promise(resolve=>{if(video.readyState>=2)resolve();else video.addEventListener("canplay",resolve,{once:true});});
-  frameDraw();
-  const output=stage.captureStream(24);
+  await new Promise((resolve,reject)=>{
+   if(video.readyState>=2){resolve();return;}
+   const timeout=setTimeout(()=>reject(Error("O vídeo demorou para carregar.")),12000);
+   video.addEventListener("canplay",()=>{clearTimeout(timeout);resolve();},{once:true});
+  });
+  const audio=await soundTrack().catch(()=>null);
+  stream=stage.captureStream(24);
+  if(audio)stream.addTrack(audio);
+  // Exact AVC/AAC MediaRecorder when available; WebM is only a conversion intermediary.
+  try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3400000,audioBitsPerSecond:128000});}
+  catch(err){
+   mime=["video/webm;codecs=vp8,opus","video/webm;codecs=vp8","video/webm"].find(m=>MediaRecorder.isTypeSupported(m));
+   if(!mime)throw Error("O navegador não conseguiu iniciar a codificação de vídeo.");
+   recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3400000,audioBitsPerSecond:128000});
+  }
+  const chunks=[];
+  const finished=new Promise((resolve,reject)=>{
+   recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
+   recorder.onerror=e=>{recordError=e.error||Error("Falha na gravação.");reject(recordError);};
+   recorder.onstop=()=>{
+    if(recordError){reject(recordError);return;}
+    resolve(new Blob(chunks,{type:recorder.mimeType||mime}));
+   };
+  });
+  const ended=new Promise((resolve,reject)=>{
+   const timeout=setTimeout(()=>reject(Error("Tempo esgotado durante a gravação.")),video.duration*1000+30000);
+   video.addEventListener("ended",()=>{clearTimeout(timeout);resolve();},{once:true});
+   video.addEventListener("error",()=>{clearTimeout(timeout);reject(Error("Falha ao reproduzir o vídeo original."));},{once:true});
+  });
+  draw();
+  exportBtn.textContent="Gravando quadros...";
+  recorder.start(1000);
   await video.play();
-  try{const audioStream=video.captureStream?.();for(const track of audioStream?.getAudioTracks()||[])output.addTrack(track);}catch{}
-  const chunks=[];recorder=new MediaRecorder(output,{mimeType:mime,videoBitsPerSecond:3500000});
-  const finished=new Promise((ok,fail)=>{recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};recorder.onerror=e=>fail(e.error||Error("Falha ao gravar."));recorder.onstop=()=>ok(new Blob(chunks,{type:"video/webm"}));});
-  const ended=new Promise((ok,fail)=>{const timeout=setTimeout(()=>fail(Error("A exportação ultrapassou o tempo limite.")),video.duration*1000+18000);video.addEventListener("ended",()=>{clearTimeout(timeout);ok();},{once:true});video.addEventListener("error",()=>{clearTimeout(timeout);fail(Error("Erro na reprodução."));},{once:true});});
-  recorder.start(1000);await ended;
+  await ended;
   if(recorder.state!=="inactive")recorder.stop();
-  const blob=await finished;if(!blob.size)throw Error("O arquivo WebM ficou vazio.");
-  download(blob,`CDE-Imports-${fmt}-video.webm`);
-  message("Arquivo WebM exportado. Confira imagem e áudio antes de publicar; MP4 exige conversão adicional.");
- }catch(e){message(`Falha ao exportar vídeo: ${e.message}`,true);if(recorder&&recorder.state!=="inactive")recorder.stop();}
- finally{cancelAnimationFrame(raf);video.pause();try{video.currentTime=0;}catch{}exporting=false;exportBtn.disabled=false;exportBtn.textContent="Exportar vídeo com marca (WebM)";}
+  const recorded=await finished;
+  if(!recorded.size)throw Error("A gravação ficou vazia.");
+  const native=String(recorder.mimeType||mime).toLowerCase().startsWith("video/mp4");
+  const mp4=await window.CDEMP4.convertToMP4(recorded,{
+   native,onProgress:progress=>{exportBtn.textContent="Convertendo MP4...";status(progress);}
+  });
+  if(!mp4.size)throw Error("O arquivo MP4 final ficou vazio.");
+  const verified=await window.CDEMP4.examineMP4(mp4);
+  if(!verified.valid||!verified.fastStart)throw Error("O MP4 não passou na verificação para publicação.");
+  download(mp4,"CDE-Imports-"+fmt+"-instagram.mp4");
+  status("Vídeo exportado: MP4 · "+prettySize(mp4.size)+" · pronto para importar em Reels.");
+  message("MP4 com marca CDE Imports exportado! Revise o áudio e envie o arquivo na Central do Instagram → Reels.");
+ }catch(err){
+  message("Falha ao exportar MP4: "+err.message+". Tente um vídeo curto ou use o MP4 original na Central do Instagram.",true);
+  status("Não foi gerado WebM: o editor exporta somente MP4 válido para o Instagram.",true);
+  if(recorder&&recorder.state!=="inactive")try{recorder.stop();}catch{}
+ }finally{
+  cancelAnimationFrame(raf);video.pause();
+  try{video.currentTime=0;}catch{}
+  for(const t of stream?.getVideoTracks()||[])t.stop();
+  exporting=false;exportBtn.disabled=false;exportBtn.textContent="Exportar vídeo com marca (MP4)";
+ }
 }
+
 exportBtn.addEventListener("click",exportVideo);
 window.CDEVideo={metadata,onCampaignSaved,openSaved};
 switchMode(false);
