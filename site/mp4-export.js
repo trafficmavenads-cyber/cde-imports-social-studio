@@ -138,7 +138,53 @@
    for(const url of temporary)URL.revokeObjectURL(url);
   }
  }
- const api={chooseRecorderMime,examineMP4,inspectCodecs,convertToMP4};
+ // Offline editing: process file bytes instead of replaying/recording the preview.
+ let editEngine=null,editTail=Promise.resolve();
+ async function engine(){
+  if(editEngine)return editEngine;
+  editEngine=(async()=>{
+   await script();const ffmpeg=new global.FFmpegWASM.FFmpeg(),urls=[];
+   try{
+    const worker=URL.createObjectURL(new Blob(['import "'+FFMPEG_ESM+'/worker.js";'],{type:'text/javascript'}));urls.push(worker);
+    const core=await blobURL(FFMPEG_CORE+'/ffmpeg-core.js','text/javascript');urls.push(core);
+    const wasm=await blobURL(FFMPEG_CORE+'/ffmpeg-core.wasm','application/wasm');urls.push(wasm);
+    await ffmpeg.load({classWorkerURL:worker,coreURL:core,wasmURL:wasm});return ffmpeg;
+   }catch(e){ffmpeg.terminate();throw e;}
+   finally{urls.forEach(url=>URL.revokeObjectURL(url));}
+  })().catch(e=>{editEngine=null;throw e;});
+  return editEngine;
+ }
+ async function renderVideo(input,{width,height,start=0,end,fit='contain',overlay=null,onProgress=()=>{}}){
+  if(!input?.size||input.size>180*1024*1024)throw Error('A edição aceita arquivos de até 180 MB. Use o modo rápido para MP4 já pronto de até 300 MB.');
+  if(![720,1280].includes(width)||![720,1280].includes(height)||!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)throw Error('Formato ou intervalo de edição inválido.');
+  const task=async()=>{
+   onProgress('Preparando edição do arquivo…');const ffmpeg=await engine();
+   const progress=event=>onProgress('Editando vídeo: '+Math.min(99,Math.max(0,Math.round((event.progress||0)*100)))+'%');
+   ffmpeg.on?.('progress',progress);
+   try{
+    await ffmpeg.writeFile('edit-source',new Uint8Array(await input.arrayBuffer()));
+    const top=overlay?Math.round(height*.14):0,bottom=overlay?Math.round(height*.11):0,area=height-top-bottom;
+    const scale=fit==='cover'?'scale='+width+':'+area+':force_original_aspect_ratio=increase,crop='+width+':'+area:
+     'scale='+width+':'+area+':force_original_aspect_ratio=decrease,pad='+width+':'+area+':(ow-iw)/2:(oh-ih)/2:color=0x071941';
+    let filter=scale+',setsar=1';
+    const args=['-y','-ss',String(start),'-t',String(end-start),'-i','edit-source'];
+    if(overlay){
+     await ffmpeg.writeFile('edit-brand.png',new Uint8Array(await overlay.arrayBuffer()));
+     args.push('-i','edit-brand.png','-filter_complex','[0:v]'+filter+',pad='+width+':'+height+':0:'+top+':color=0x071941[base];[base][1:v]overlay=0:0:format=auto,format=yuv420p[out]','-map','[out]');
+    }else args.push('-vf',filter,'-map','0:v:0');
+    args.push('-map','0:a:0?','-c:v','libx264','-preset','ultrafast','-crf','23','-pix_fmt','yuv420p','-r','30','-c:a','aac','-b:a','128k','-movflags','+faststart','edit-result.mp4');
+    if(await ffmpeg.exec(args)!==0)throw Error('Não foi possível editar este arquivo. Verifique o vídeo ou use outro formato.');
+    const result=new Blob([await ffmpeg.readFile('edit-result.mp4')],{type:'video/mp4'});
+    const checked=await examineMP4(result),codecs=await inspectCodecs(result);
+    if(!checked.valid||!checked.fastStart||codecs.some(x=>!['avc1','avc3','mp4a'].includes(x)))throw Error('O vídeo editado não passou na validação MP4.');
+    return result;
+   }catch(e){throw e instanceof Error?e:new Error(String(e));}
+   finally{ffmpeg.off?.('progress',progress);for(const name of ['edit-source','edit-brand.png','edit-result.mp4'])try{await ffmpeg.deleteFile(name);}catch{}}
+  };
+  const pending=editTail.then(task);editTail=pending.catch(()=>{});return pending;
+ }
+ async function releaseEditor(){await editTail;if(editEngine){try{(await editEngine).terminate();}catch{}editEngine=null;}}
+ const api={chooseRecorderMime,examineMP4,inspectCodecs,convertToMP4,renderVideo,releaseEditor};
  global.CDEMP4=api;
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

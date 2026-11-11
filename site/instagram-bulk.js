@@ -2,11 +2,12 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='cde-instagram-bulk-v1',DB='cde-instagram-media-v1';
-const MB=1024*1024,MAX_ITEMS=60,MAX_IMAGE_SOURCE=50*MB,MAX_REELS=300*MB,MAX_STORY_VIDEO=100*MB;
+const MB=1024*1024,MAX_ITEMS=100,MAX_IMAGE_SOURCE=50*MB,MAX_REELS=300*MB,MAX_STORY_VIDEO=100*MB;
 const states={draft:'Rascunho',scheduled:'Agendado no navegador',running:'Publicando',
  published:'Publicado (confirmado pela Meta)',attention:'Verificar — não confirmado'};
 let queue=[],selected=[],previews=[],busy=new Set(),dbPromise=null;
 try{const saved=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(saved))queue=saved.filter(x=>x&&typeof x.id==='string'&&Array.isArray(x.items)&&x.items.length).slice(-500);}catch{}
+for(const item of queue)if(item.status==='running'){item.status='attention';item.auto=false;item.error='Envio interrompido. Confira a publicação na rede antes de retomar para evitar duplicação.';}
 function db(){
  if(dbPromise)return dbPromise;
  dbPromise=new Promise((resolve,reject)=>{
@@ -240,7 +241,7 @@ async function addToQueue(){
  if(youtube&&(format!=='REELS'&&format!=='AUTO'||allMedia.some(x=>x.type!=='video/mp4')))
   return notice('Para publicar também no YouTube, selecione somente vídeos MP4 no modo Reels ou Automático.',true);
  if(youtube&&remotes.length)return notice('O YouTube exige arquivos MP4 locais; links públicos não são aceitos para o envio conjunto.',true);
- if(queue.filter(x=>x.status!=='published').length+allMedia.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
+ if(queue.filter(x=>x.status!=='published').length+allMedia.length>MAX_ITEMS)return notice('Limite de 100 destinos pendentes atingido. Remova publicações anteriores.',true);
  if(format==='STORIES'&&($('ig-story-link').value.trim()||$('ig-story-music-name').value.trim())&&auto)return notice('Stories com link ou música da biblioteca precisam ser finalizados no aplicativo Instagram. Desmarque envio automático.',true);
  if(auto&&!when)return notice('Escolha data e hora antes de autorizar a publicação automática.',true);
  if(auto&&new Date(when).getTime()<=Date.now())return notice('O horário automático deve estar no futuro.',true);
@@ -270,7 +271,7 @@ async function addToQueue(){
  finally{button.disabled=false;}
 }
 function delay(ms){return new Promise(r=>setTimeout(r,ms));}
-async function publish(item,{automatic=false}={}){
+async function publish(item,{automatic=false,mediaCache=null}={}){
  if(busy.has(item.id)||item.status==='published')return;
  if(item.kind.startsWith('STORY_')&&(item.storyLink||item.storyMusic)){notice('Este Story usa link ou música do Instagram. Baixe o arquivo e publique pelo aplicativo do celular para incluir os elementos.',true);return;}
  const ig=window.CDEInstagramPublisher;
@@ -296,7 +297,9 @@ async function publish(item,{automatic=false}={}){
      const isImage=file.type.startsWith('image/');
      const blob=isImage?await imageToJpeg(file,item.kind,
        item.kind==='STORY_IMAGE'?item.storyText||'':'',item.kind==='STORY_IMAGE'?item.storyCta||'':''):file;
-     const response=await ig.uploadMedia(blob);
+     let response;
+     if(mediaCache&&meta.key){if(!mediaCache.has(meta.key))mediaCache.set(meta.key,ig.uploadMedia(blob));response=await mediaCache.get(meta.key);}
+     else response=await ig.uploadMedia(blob);
      if(!response.mediaUrl)throw Error('O Render não retornou a URL pública.');
      prepared.push({kind:isImage?'IMAGE':'VIDEO',mediaUrl:response.mediaUrl});
      uploadedUrls.push(response.mediaUrl);
@@ -326,7 +329,7 @@ async function publish(item,{automatic=false}={}){
     }
   let ready=false;
   for(let round=0;round<24;round++){
-   await delay(round<3?1300:3000);
+   if(round)await delay(round<4?1500:3000);
    const checked=await ig.checkStatus(item.jobId);
    if(checked.ready){ready=true;break;}
    if(['ERROR','EXPIRED'].includes(checked.state))throw Error('A Meta rejeitou a mídia. Verifique formatos e dimensões.');
@@ -347,10 +350,11 @@ async function publish(item,{automatic=false}={}){
   item.status='attention';item.auto=false;item.error=String(err?.message||'Falha no envio.').slice(0,240);
   notice(item.title+': '+item.error,true);
  }finally{
-  if(confirmed&&uploadedUrls.length){
+  if(confirmed&&!mediaCache&&uploadedUrls.length){
    try{await ig.releaseMedia(uploadedUrls);}catch{/* TTL cleans staging after failures. */}
   }
   busy.delete(item.id);save();refresh();
+  if(confirmed)for(const meta of item.items){if(meta.key&&!queue.some(other=>other.status!=='published'&&other.items.some(m=>m.key===meta.key)))try{await delFile(meta.key);}catch{}}
  }
 }
 let schedulerBusy=false;
@@ -456,12 +460,12 @@ window.CDEDirectQueue={
  enqueue:async ({title,entries})=>{
   if(!title?.trim()||!Array.isArray(entries)||!entries.length)throw Error('Selecione os destinos e informe o produto.');
   if(queue.filter(x=>x.status!=='published').length+entries.length>MAX_ITEMS)throw Error('A fila está cheia. Resolva as publicações pendentes.');
-  const created=[],stored=[];
+  const created=[],stored=[],keyForBlob=new Map();
   try{
    for(const entry of entries){
     if(!entry.blob||entry.blob.type!=='video/mp4'||entry.blob.size>300*MB)throw Error('Vídeo editado inválido ou maior que 300 MB.');
-    const key=id(),file=new File([entry.blob],title.slice(0,70)+'.mp4',{type:'video/mp4'});
-    await putFile(key,file);stored.push(key);
+    let key=keyForBlob.get(entry.blob);const file=new File([entry.blob],title.slice(0,70)+'.mp4',{type:'video/mp4'});
+    if(!key){key=id();await putFile(key,file);stored.push(key);keyForBlob.set(entry.blob,key);}
     created.push({id:id(),title:title.trim().slice(0,110),kind:entry.kind,instagram:!entry.youtube,youtube:Boolean(entry.youtube),
      youtubeChannel:entry.youtubeChannel,youtubeCaption:entry.caption,caption:entry.caption,shareToFeed:entry.shareToFeed,
      destinationLabel:entry.label,status:'draft',when:null,auto:false,created:new Date().toISOString(),
@@ -472,12 +476,16 @@ window.CDEDirectQueue={
    refresh();return created.map(x=>x.id);
   }catch(error){for(const key of stored)await delFile(key).catch(()=>{});throw error;}
  },
- publish:async ids=>{
-  const results=[];
-  for(const key of ids){
-   const item=queue.find(x=>x.id===key);if(!item)continue;
-   await publish(item);
-   results.push({id:item.id,label:item.destinationLabel,status:item.status,error:item.error||''});
+ publish:async (ids,{onProgress=()=>{}}={})=>{
+  const results=[],pending=[...new Set(ids)],mediaCache=new Map();let completed=0;
+  const worker=async()=>{while(pending.length){const key=pending.shift(),item=queue.find(x=>x.id===key);if(!item)continue;
+   await publish(item,{mediaCache});results.push({id:item.id,label:item.destinationLabel,status:item.status,error:item.error||''});onProgress(++completed);
+  }};
+  await Promise.all([worker(),worker()]);
+  if(results.length&&results.every(x=>x.status==='published')){
+   const uploaded=await Promise.allSettled([...mediaCache.values()]);
+   const urls=[...new Set(uploaded.filter(x=>x.status==='fulfilled').map(x=>x.value.mediaUrl).filter(Boolean))];
+   if(urls.length)try{await window.CDEInstagramPublisher.releaseMedia(urls);}catch{}
   }
   return results;
  }

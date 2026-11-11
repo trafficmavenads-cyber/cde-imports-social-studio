@@ -141,7 +141,7 @@ async function handler(req,res){
  }
  if(req.method==='GET'&&url==='/api/health'){
   return reply(req,res,200,{
-   ok:true,service:'CDE Imports Social Studio',version:'0.16.0',
+   ok:true,service:'CDE Imports Social Studio',version:'0.17.0',
    mode:authEnabled?'oauth-temporary':'demo',demoMode:!authEnabled,temporaryStorage:true,
    providerConfigured:{instagram:instagramEnabled,tiktok:enabled,pinterest:false,youtube:youtubeEnabled},
    aiConfigured:aiEnabled,aiProvider:aiEnabled?AI_PROVIDER:null,aiModel:aiEnabled?(AI_PROVIDER==='gemini'?GEMINI_MODEL:AI_MODEL):null,aiEndpoint:'/api/ai/captions',
@@ -352,7 +352,7 @@ async function handler(req,res){
  if(req.method==='POST'&&url==='/api/ai/captions'){
   if(!aiEnabled)return reply(req,res,409,{error:'IA online não está configurada. Use o gerador gratuito local.'});
   const prev=aiLimits.get('global'),now=Date.now();
-  if(prev&&prev.until>now&&prev.count>=10)return reply(req,res,429,{error:'Limite gratuito de segurança: 10 solicitações de IA online por hora nesta instância. Use as sugestões locais.'});
+  if(prev&&prev.until>now&&prev.count>=40)return reply(req,res,429,{error:'Limite gratuito de segurança: 40 solicitações de IA online por hora nesta instância. Use as sugestões locais.'});
   const input=await getBody(req);
   const approved=['instagram-feed','instagram-stories','instagram-reels','tiktok','pinterest','youtube-shorts','whatsapp-group','whatsapp-status'];
   if(typeof input.title!=='string'||input.title.trim().length<2||input.title.length>110||

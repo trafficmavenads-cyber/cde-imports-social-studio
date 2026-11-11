@@ -73,12 +73,6 @@ async function openSaved(campaignId){
   await loadVideo(result.file,true);byId("studio").scrollIntoView({behavior:"smooth",block:"start"});
  }catch(e){message(`Falha ao recuperar vídeo: ${e.message}`,true);}
 }
-function drawCover(ctx,x,y,w,h){
- if(byId("video-fit")?.value==="contain"){const ratio=Math.min(w/video.videoWidth,h/video.videoHeight),dw=video.videoWidth*ratio,dh=video.videoHeight*ratio;ctx.drawImage(video,x+(w-dw)/2,y+(h-dh)/2,dw,dh);return;}
- const mw=video.videoWidth,mh=video.videoHeight;if(!mw||!mh)return;
- const scale=Math.max(w/mw,h/mh),sw=w/scale,sh=h/scale;
- ctx.drawImage(video,(mw-sw)/2,(mh-sh)/2,sw,sh,x,y,w,h);
-}
 function drawBrand(ctx,w,h){
  const top=Math.round(h*.14),bottom=Math.round(h*.11),stripe=Math.max(5,Math.round(h*.006));
  ctx.fillStyle="#071941";ctx.fillRect(0,0,w,top);ctx.fillRect(0,h-bottom,w,bottom);
@@ -95,123 +89,45 @@ function drawBrand(ctx,w,h){
  ["#007fd8","#ed2346","#ffd339"].forEach((color,i)=>{ctx.fillStyle=color;ctx.fillRect(i*w/3,h-stripe,w/3+1,stripe);});
 }
 function download(blob,filename){const a=document.createElement("a"),uri=URL.createObjectURL(blob);a.href=uri;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(uri),120000);}
-let audioCtx=null,audioSource=null,audioTarget=null;
-async function soundTrack(){
- const Constructor=window.AudioContext||window.webkitAudioContext;
- if(!Constructor)return null;
- if(!audioCtx){
-  audioCtx=new Constructor();
-  audioSource=audioCtx.createMediaElementSource(video);
-  audioTarget=audioCtx.createMediaStreamDestination();
-  audioSource.connect(audioTarget);
-  audioSource.connect(audioCtx.destination);
+async function prepareVideo(file,source,format,{mode='edited',start=0,end=source.duration,onProgress=status}={}){
+ const portrait=format!=='landscape';
+ const fitOriginal=portrait?source.height>=source.width:source.width>source.height;
+ const uncut=start===0&&Math.abs(end-source.duration)<.06;
+ const check=await window.CDEMP4.examineMP4(file);
+ if(mode==='fast'&&uncut&&fitOriginal&&check.valid){
+  onProgress('MP4 pronto: preparando envio sem recriar o vídeo…');
+  const blob=await window.CDEMP4.convertToMP4(file,{native:true,onProgress});
+  return {blob:new Blob([blob],{type:'video/mp4'}),width:source.width,height:source.height,duration:end-start};
  }
- if(audioCtx.state==='suspended')await audioCtx.resume();
- return audioTarget.stream.getAudioTracks()[0]||null;
+ const [width,height]=portrait?[720,1280]:[1280,720];
+ let overlay=null;
+ if(mode==='edited'){
+  if(!logo.complete)await logo.decode();
+  const brand=document.createElement('canvas');brand.width=width;brand.height=height;
+  drawBrand(brand.getContext('2d'),width,height);
+  overlay=await new Promise(resolve=>brand.toBlob(resolve,'image/png'));
+ }
+ const blob=await window.CDEMP4.renderVideo(file,{width,height,start,end,fit:byId('video-fit')?.value||'contain',overlay,onProgress});
+ return {blob,width,height,duration:end-start};
 }
-async function exportVideo({downloadFile=true,format=null}={}){
- if(!selected||!loaded)return status("Selecione primeiro um vídeo válido.",true);
- if(exporting)return;
- if(!window.CDEMP4||typeof MediaRecorder==="undefined"||!HTMLCanvasElement.prototype.captureStream)
-  return status("A exportação MP4 exige Chrome ou Edge atualizado e a biblioteca de conversão.",true);
- if(!Number.isFinite(video.duration)||video.duration>240||video.duration<=0)
-  return status("Exportação MP4 disponível para vídeos de até 4 minutos. Para vídeos mais longos, carregue diretamente o MP4 original na Central do Instagram.",true);
- let mime=window.CDEMP4.chooseRecorderMime(MediaRecorder);
- if(!mime)return status("O navegador não oferece gravação de vídeo compatível. Atualize o Chrome ou Edge.",true);
- exporting=true;exportBtn.disabled=true;exportBtn.textContent="Preparando MP4...";
- const fmt=format||byId("format").value,[w,h]=fmt==="landscape"?[1280,720]:fmt==="square"?[720,720]:fmt==="pin"?[720,1080]:[720,1280];
- const start=Number(byId("video-trim-start")?.value||0),end=Number(byId("video-trim-end")?.value||video.duration);
- if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end>video.duration+.05){exporting=false;exportBtn.disabled=false;throw Error("Informe um corte válido dentro da duração do vídeo.");}
- const stage=document.createElement("canvas");stage.width=w;stage.height=h;
- const ctx=stage.getContext("2d");
- let raf=0,recorder=null,stream=null,recordError=null,cancelPlayback=()=>{};
- const draw=()=>{
-  ctx.fillStyle="#071941";ctx.fillRect(0,0,w,h);
-  const top=Math.round(h*.14),bottom=Math.round(h*.11);
-  drawCover(ctx,0,top,w,h-top-bottom);drawBrand(ctx,w,h);
-  raf=requestAnimationFrame(draw);
- };
+async function exportVideo({downloadFile=true,format=null,mode='edited',onProgress=status}={}){
+ if(!selected||!loaded)throw Error('Selecione primeiro um vídeo válido.');
+ if(exporting)throw Error('Já existe um vídeo em preparação.');
+ exporting=true;exportBtn.disabled=true;
  try{
-  if(!ctx)throw Error("Não foi possível iniciar o editor MP4.");
-  video.pause();video.currentTime=start;
-  if(video.seeking)await new Promise(resolve=>video.addEventListener("seeked",resolve,{once:true}));
-  await new Promise((resolve,reject)=>{
-   if(video.readyState>=2){resolve();return;}
-   const timeout=setTimeout(()=>reject(Error("O vídeo demorou para carregar.")),12000);
-   video.addEventListener("canplay",()=>{clearTimeout(timeout);resolve();},{once:true});
-  });
-  const audio=await soundTrack().catch(()=>null);
-  stream=stage.captureStream(24);
-  if(audio)stream.addTrack(audio);
-  // Exact AVC/AAC MediaRecorder when available; WebM is only a conversion intermediary.
-  try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3400000,audioBitsPerSecond:128000});}
-  catch(err){
-   mime=["video/webm;codecs=vp8,opus","video/webm;codecs=vp8","video/webm"].find(m=>MediaRecorder.isTypeSupported(m));
-   if(!mime)throw Error("O navegador não conseguiu iniciar a codificação de vídeo.");
-   recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3400000,audioBitsPerSecond:128000});
-  }
-  const chunks=[];
-  const finished=new Promise((resolve,reject)=>{
-   recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
-   recorder.onerror=e=>{recordError=e.error||Error("Falha na gravação.");reject(recordError);};
-   recorder.onstop=()=>{
-    if(recordError){reject(recordError);return;}
-    resolve(new Blob(chunks,{type:recorder.mimeType||mime}));
-   };
-  });
-  const ended=new Promise((resolve,reject)=>{
-   const clean=()=>{clearTimeout(timeout);video.removeEventListener('timeupdate',tick);video.removeEventListener('ended',done);video.removeEventListener('error',fail);};
-   cancelPlayback=clean;
-   const done=()=>{clean();video.pause();resolve();};
-   const fail=()=>{clean();reject(Error('Falha ao reproduzir o vídeo original.'));};
-   const tick=()=>{if(video.currentTime>=end)done();};
-   const timeout=setTimeout(()=>{clean();reject(Error('Tempo esgotado durante a gravação.'));},(end-start)*1000+30000);
-   video.addEventListener('timeupdate',tick);video.addEventListener('ended',done);video.addEventListener('error',fail);
-  });
-  ended.catch(()=>{});finished.catch(()=>{});
-  draw();
-  exportBtn.textContent="Gravando quadros...";
-  recorder.start(1000);
-  await video.play();
-  await ended;
-  if(recorder.state!=="inactive")recorder.stop();
-  const recorded=await finished;
-  if(!recorded.size)throw Error("A gravação ficou vazia.");
-  const native=String(recorder.mimeType||mime).toLowerCase().startsWith("video/mp4");
-  const mp4=await window.CDEMP4.convertToMP4(recorded,{
-   native,onProgress:progress=>{exportBtn.textContent="Convertendo MP4...";status(progress);}
-  });
-  if(!mp4.size)throw Error("O arquivo MP4 final ficou vazio.");
-  const verified=await window.CDEMP4.examineMP4(mp4);
-  if(!verified.valid||!verified.fastStart)throw Error("O MP4 não passou na verificação para publicação.");
-  if(!downloadFile){
-   message('Versão editada pronta para envio direto.');
-   return {blob:new Blob([mp4],{type:"video/mp4"}),width:w,height:h,duration:end-start};
-  }
-  download(mp4,"CDE-Imports-"+fmt+"-instagram.mp4");
-  status("Vídeo exportado: MP4 · "+prettySize(mp4.size)+" · pronto para importar em Reels.");
-  message("MP4 com marca CDE Imports exportado! Revise o áudio e envie o arquivo na Central do Instagram → Reels.");
- }catch(err){
-  message("Falha ao exportar MP4: "+err.message+". Tente um vídeo curto ou use o MP4 original na Central do Instagram.",true);
-  status("Não foi gerado WebM: o editor exporta somente MP4 válido para o Instagram.",true);
-  if(recorder&&recorder.state!=="inactive")try{recorder.stop();}catch{}
-  if(!downloadFile)throw err;
- }finally{
-  cancelPlayback();cancelAnimationFrame(raf);video.pause();
-  try{video.currentTime=0;}catch{}
-  for(const t of stream?.getVideoTracks()||[])t.stop();
-  exporting=false;exportBtn.disabled=false;exportBtn.textContent="Exportar vídeo com marca (MP4)";
- }
+  const result=await prepareVideo(selected,{duration:video.duration,width:video.videoWidth,height:video.videoHeight},format||byId('format').value,
+   {mode,start:Number(byId('video-trim-start')?.value||0),end:Number(byId('video-trim-end')?.value||video.duration),onProgress});
+  if(downloadFile)download(result.blob,'CDE-Imports-video.mp4');
+  message('Vídeo pronto para envio direto.');return result;
+ }catch(error){message('Não foi possível preparar o vídeo: '+String(error.message||error),true);throw error;}
+ finally{exporting=false;exportBtn.disabled=false;}
 }
 
 exportBtn.addEventListener("click",()=>exportVideo());
 window.CDEVideo={metadata,onCampaignSaved,openSaved,
  loadVideo,
- renderForPublish:async format=>{
-  const result=await exportVideo({downloadFile:false,format});
-  if(!result?.blob)throw Error('Não foi possível preparar o vídeo editado. Use vídeo de até 4 minutos no Chrome ou Edge.');
-  return result;
- },
+ prepareFile:prepareVideo,
+ renderForPublish:(format,options={})=>exportVideo({downloadFile:false,format,...options}),
  sourceInfo:()=>selected&&loaded?{duration:video.duration,width:video.videoWidth,height:video.videoHeight}:null
 };
 switchMode(false);

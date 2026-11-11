@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {chooseRecorderMime,examineMP4,inspectCodecs,convertToMP4}=require('../../site/mp4-export.js');
+const {chooseRecorderMime,examineMP4,inspectCodecs,convertToMP4,renderVideo,releaseEditor}=require('../../site/mp4-export.js');
 function box(name,payload=Buffer.alloc(4)){
  const buf=Buffer.alloc(payload.length+8);
  buf.writeUInt32BE(buf.length,0);
@@ -79,4 +79,20 @@ test('MP4 nativo com áudio Opus deve converter para AAC antes de publicar na Me
   assert.deepEqual(await inspectCodecs(output),['avc1','mp4a']);
   const args=commands[0];assert.equal(args[args.indexOf('-c:a')+1],'aac');assert.equal(args[args.indexOf('-c:v')+1],'copy');
  }finally{globalThis.fetch=beforeFetch;if(beforeFFmpeg===undefined)delete globalThis.FFmpegWASM;else globalThis.FFmpegWASM=beforeFFmpeg;}
+});
+
+test('edição usa arquivo, corte e filtros diretamente; reutiliza o motor no lote',async()=>{
+ const beforeFetch=globalThis.fetch,beforeFFmpeg=globalThis.FFmpegWASM,commands=[];let loads=0;
+ class FakeFFmpeg{
+  async load(){loads++;} async writeFile(){} async deleteFile(){}
+  async exec(args){commands.push(args);return 0;}
+  async readFile(){return codecMovie('mp4a');} terminate(){}
+ }
+ globalThis.fetch=async()=>new Response(new Uint8Array([1,2,3]));globalThis.FFmpegWASM={FFmpeg:FakeFFmpeg};
+ try{
+  const input=new Blob([codecMovie('mp4a')],{type:'video/mp4'});
+  for(const width of [720,1280])await renderVideo(input,{width,height:width===720?1280:720,start:.4,end:3.8,overlay:new Blob(['overlay'])});
+  assert.equal(loads,1);assert.equal(commands.length,2);
+  for(const args of commands){assert.ok(args.includes('-filter_complex'));assert.equal(args[args.indexOf('-ss')+1],'0.4');assert.equal(args[args.indexOf('-t')+1],'3.4');assert.ok(args.includes('libx264'));assert.ok(args.includes('aac'));}
+ }finally{await releaseEditor();globalThis.fetch=beforeFetch;if(beforeFFmpeg===undefined)delete globalThis.FFmpegWASM;else globalThis.FFmpegWASM=beforeFFmpeg;}
 });

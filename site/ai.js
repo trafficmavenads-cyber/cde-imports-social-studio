@@ -169,10 +169,10 @@ $('ai-unblock').addEventListener('click',()=>{
  const d=formData();if(!d.title){status('Informe o nome do produto para gerar ideias.',true);return;}
  state.ideas=ideaSet(d);renderIdeas();status('Quatro ideias prontas para usar na sua campanha.');
 });
-window.CDESocialAI={generateForProduct:async title=>{
+window.CDESocialAI={generateForProduct:async (title,{localOnly=false}={})=>{
  const d={title:String(title).trim().slice(0,110),brief:'',tone:'premium',goal:'apresentar',channels:['instagram-reels','youtube-shorts']};
  if(!d.title)throw Error('Informe o nome do produto.');
- const online=Boolean(window.CDEAIBackend?.status?.().available);
+ const online=!localOnly&&Boolean(window.CDEAIBackend?.status?.().available);
  const result=online?await window.CDEAIBackend.generate(d):localGenerate(d);
  const normalized=normalize(result,d,online?'online':'local');
  return {mode:normalized.mode,captions:Object.fromEntries(normalized.suggestions.map(x=>[x.channel,x.variants[0]]))};
