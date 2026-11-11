@@ -59,6 +59,8 @@ Qualidade, variedade e condições especiais. Confira os detalhes e garanta o se
  <label>Música desejada para adicionar no celular<input type="text" maxlength="100" id="ig-story-music-name" placeholder="Ex.: escolha uma música na biblioteca do Instagram"></label>
  <p class="ai-tip">Texto e chamada são incorporados à foto; não são stickers clicáveis. Música da biblioteca, links interativos e enquetes devem ser adicionados pelo aplicativo do Instagram.</p>
  </div>
+ <label class="ig-bulk-check"><input type="checkbox" id="ig-bulk-youtube"> Publicar também no YouTube Shorts (somente vídeos Reels, requer canal conectado)</label>
+ <p class="ai-tip">O YouTube precisa de autorização OAuth separada. Os vídeos devem ter até 3 minutos e formato vertical ou quadrado para serem classificados como Shorts. A confirmação é individual para cada rede.</p>
  <label>Data e horário<input type="datetime-local" id="ig-bulk-time"></label>
  <label>Intervalo entre posts individuais (horas)<input id="ig-bulk-interval" type="number" min="0" max="720" step="1" value="24"></label>
  <label class="ig-bulk-check"><input type="checkbox" id="ig-bulk-rights"> Confirmo que possuo autorização para utilizar comercialmente estas imagens, vídeos e áudios.</label>
@@ -111,7 +113,14 @@ Qualidade, variedade e condições especiais. Confira os detalhes e garanta o se
  <p>Permissão inicial: <code>user.info.basic</code>. O botão de conexão só será habilitado depois que o Render reconhecer as três variáveis. O Render Free não guarda o login permanentemente; este ambiente é exclusivamente para testes.</p>
  <div class="tiktok-guide-actions"><a href="https://developers.tiktok.com/apps/" target="_blank" rel="noopener" class="secondary">Abrir TikTok Developers ↗</a><a href="https://dashboard.render.com/web/srv-dbpkmi56e07s73d9fci0" target="_blank" rel="noopener" class="secondary">Configurar credenciais no Render ↗</a></div>
 </div>
-<div id="account-grid" class="connection-grid" aria-live="polite"></div>
+<div class="tiktok-config-guide">
+ <div class="tiktok-guide-title"><strong>▶ YouTube Shorts — conexão oficial Google</strong><span>OAuth 2.0 · YouTube Data API v3</span></div>
+ <p>Crie um projeto no <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">Google Cloud</a>, habilite a YouTube Data API v3 e configure a tela de consentimento OAuth. Crie um cliente OAuth do tipo <strong>Aplicativo Web</strong> com a URI abaixo.</p>
+ <div class="tiktok-callback"><code>https://cde-imports-social-demo.onrender.com/api/oauth/callback/youtube</code><button type="button" class="secondary" id="copy-youtube-callback">Copiar URL</button></div>
+ <p>No Render → Environment, configure <code>GOOGLE_CLIENT_ID</code> e <code>GOOGLE_CLIENT_SECRET</code>. Nunca coloque o segredo no código público. Se o aplicativo estiver em teste, adicione seu e-mail como usuário de teste do OAuth. Depois de atualizar o backend, clique em <strong>Conectar YouTube</strong> e conceda autorização para acessar o canal e enviar vídeos.</p>
+ <p>O envio usa a API oficial. A publicação agendada continua dependente do navegador aberto e das sessões temporárias do Render Free. A seleção de YouTube só funciona com Reels MP4 locais (sem links externos).</p>
+ </div>
+ <div id="account-grid" class="connection-grid" aria-live="polite"></div>
 <div class="notice">Para habilitar os botões, precisamos de um backend HTTPS e das credenciais OAuth de aplicativos registrados em cada rede. <strong>Não envie senhas, tokens ou segredos nesta conversa nem no repositório GitHub público.</strong> O código do backend está na pasta <code>backend/</code> do repositório. WhatsApp Grupo e Status continuam com compartilhamento assistido.</div>
 </section>
 <footer>Feito para a CDE Imports • <a href="https://cdeimports.site" target="_blank" rel="noopener">cdeimports.site</a> • Dados de trabalho salvos apenas neste navegador • <a href="terms.html">Termos de Uso</a> • <a href="privacy.html">Política de Privacidade</a></footer></main></div><script src="app.js"></script><script src="mp4-export.js"></script><script src="video.js"></script><script src="connections.js"></script><script src="drafts.js"></script><script src="ai.js"></script><script src="instagram-bulk.js"></script></body></html>
