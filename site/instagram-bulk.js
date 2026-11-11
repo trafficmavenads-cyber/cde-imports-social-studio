@@ -177,7 +177,16 @@ function imageToJpeg(file,kind,text,cta){
      ctx.font='bold 42px Arial, sans-serif';
      splitLine(cta.slice(0,85),y,'#ffdf72',2);
     }
-    canvas.toBlob(blob=>blob?resolve(blob):reject(Error('Falha ao converter JPEG.')),'image/jpeg',0.87);
+    const MAX_POST_JPEG=8*1024*1024;
+    function compress(quality){
+     canvas.toBlob(blob=>{
+      if(!blob){reject(Error('Falha ao converter JPEG.'));return;}
+      if(blob.size<=MAX_POST_JPEG){resolve(blob);return;}
+      if(quality>0.49){compress(Math.max(0.45,quality-0.18));return;}
+      reject(Error('A imagem convertida ainda ultrapassa 8 MB; reduza a resolução original.'));
+     },'image/jpeg',quality);
+    }
+    compress(0.88);
    };
    image.onerror=()=>reject(Error('Formato de imagem incompatível.'));
    image.src=reader.result;
