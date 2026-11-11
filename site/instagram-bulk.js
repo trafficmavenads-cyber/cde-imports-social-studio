@@ -255,6 +255,8 @@ async function publish(item,{automatic=false}={}){
   item.status='attention';item.error='Conecte e autorize o Instagram na seção Conexões. Nenhum post enviado.';save();refresh();return;
  }
  busy.add(item.id);item.status='running';item.error='';save();refresh();
+ const uploadedUrls=[];
+ let confirmed=false;
  try{
   if(!item.jobId){
     let prepared=[];
@@ -271,6 +273,7 @@ async function publish(item,{automatic=false}={}){
      const response=await ig.uploadMedia(blob);
      if(!response.mediaUrl)throw Error('O Render não retornou a URL pública.');
      prepared.push({kind:isImage?'IMAGE':'VIDEO',mediaUrl:response.mediaUrl});
+     uploadedUrls.push(response.mediaUrl);
     }
     const result=await ig.prepare({
      kind:item.kind,caption:item.kind.startsWith('STORY_')?'':item.caption,
@@ -290,6 +293,7 @@ async function publish(item,{automatic=false}={}){
   if(!ready)throw Error('A mídia ainda está em processamento. Verifique antes de tentar outro envio.');
   const resultPublished=await ig.confirm(item.jobId);
   if(resultPublished.state!=='published'||!resultPublished.mediaId)throw Error('A Meta não confirmou a publicação.');
+  confirmed=true;
   item.mediaId=resultPublished.mediaId;item.status='published';item.publishedAt=new Date().toISOString();item.error='';
   if(!item.kind.startsWith('STORY_')){
    window.CDESocialData?.markInstagramPublished?.({
@@ -301,7 +305,12 @@ async function publish(item,{automatic=false}={}){
  }catch(err){
   item.status='attention';item.auto=false;item.error=String(err?.message||'Falha no envio.').slice(0,240);
   notice(item.title+': '+item.error,true);
- }finally{busy.delete(item.id);save();refresh();}
+ }finally{
+  if(confirmed&&uploadedUrls.length){
+   try{await ig.releaseMedia(uploadedUrls);}catch{/* TTL cleans staging after failures. */}
+  }
+  busy.delete(item.id);save();refresh();
+ }
 }
 let schedulerBusy=false;
 async function scan(){
