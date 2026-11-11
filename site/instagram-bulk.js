@@ -122,6 +122,7 @@ function refresh(){
   card.append(summary);
   if(item.status==='attention'&&item.error){const error=document.createElement('p');error.className='ig-job-error';error.textContent=item.error;card.append(error);}
   if(item.mediaId){const ref=document.createElement('small');ref.textContent='ID confirmado pela Meta: '+item.mediaId;card.append(ref);}
+ if(item.youtube){const ref=document.createElement('small');ref.textContent=item.youtubeVideoId?'Short confirmado no YouTube: '+item.youtubeVideoId:'YouTube Shorts selecionado · aguardando confirmação';card.append(ref);}
   if(item.kind.startsWith('STORY_')){
    if(item.storyMusic){const music=document.createElement('small');music.className='ig-job-hint';music.textContent='Música para adicionar no celular: '+item.storyMusic;card.append(music);}
    const info=document.createElement('small');info.className='ig-job-hint';
@@ -212,6 +213,7 @@ function buildItems(files,kind,caption,when,auto,text,cta,link,music,intervalHou
 }
 async function addToQueue(){
  const format=$('ig-bulk-format').value,when=$('ig-bulk-time').value,auto=$('ig-bulk-auto').checked;
+ const youtube=Boolean($('ig-bulk-youtube')?.checked);
  let remotes;
  try{remotes=parseRemoteItems();}catch(err){return notice(err.message||String(err),true);}
  const allMedia=[...selected,...remotes.map(x=>x.file)];
@@ -219,6 +221,9 @@ async function addToQueue(){
  const intervalHours=Number($('ig-bulk-interval')?.value||0);
  if(!Number.isFinite(intervalHours)||intervalHours<0||intervalHours>720)return notice('O intervalo deve estar entre 0 e 720 horas.',true);
  const fail=possible(format,allMedia);if(fail)return notice(fail,true);
+ if(youtube&&(format!=='REELS'&&format!=='AUTO'||allMedia.some(x=>x.type!=='video/mp4')))
+  return notice('Para publicar também no YouTube, selecione somente vídeos MP4 no modo Reels ou Automático.',true);
+ if(youtube&&remotes.length)return notice('O YouTube exige arquivos MP4 locais; links públicos não são aceitos para o envio conjunto.',true);
  if(queue.length+allMedia.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
  if(format==='STORIES'&&($('ig-story-link').value.trim()||$('ig-story-music-name').value.trim())&&auto)return notice('Stories com link ou música da biblioteca precisam ser finalizados no aplicativo Instagram. Desmarque envio automático.',true);
  if(auto&&!when)return notice('Escolha data e hora antes de autorizar a publicação automática.',true);
@@ -241,6 +246,7 @@ async function addToQueue(){
   }
   refs.push(...remotes);
   const entries=buildItems(refs,format,caption,when,auto,text,cta,link,music,intervalHours);
+  for(const entry of entries)entry.youtube=youtube&&entry.kind==='REELS';
   queue.push(...entries);save();selected=[];$('ig-bulk-files').value='';$('ig-bulk-urls').value='';preview();refresh();
   notice(entries.length+' publicação(ões) adicionada(s). Arquivos guardados somente neste navegador.');
  }catch(e){notice('Falha ao armazenar os arquivos: '+String(e.message||e),true);}
@@ -251,6 +257,9 @@ async function publish(item,{automatic=false}={}){
  if(busy.has(item.id)||item.status==='published')return;
  if(item.kind.startsWith('STORY_')&&(item.storyLink||item.storyMusic)){notice('Este Story usa link ou música do Instagram. Baixe o arquivo e publique pelo aplicativo do celular para incluir os elementos.',true);return;}
  const ig=window.CDEInstagramPublisher;
+ if(item.youtube&&!item.youtubeVideoId&&!window.CDEYouTubePublisher?.status?.().ready){
+  item.status='attention';item.error='Conecte e autorize o canal YouTube na seção Conexões.';save();refresh();return;
+ }
  if(!ig?.status?.().ready){
   item.status='attention';item.error='Conecte e autorize o Instagram na seção Conexões. Nenhum post enviado.';save();refresh();return;
  }
@@ -274,6 +283,16 @@ async function publish(item,{automatic=false}={}){
      if(!response.mediaUrl)throw Error('O Render não retornou a URL pública.');
      prepared.push({kind:isImage?'IMAGE':'VIDEO',mediaUrl:response.mediaUrl});
      uploadedUrls.push(response.mediaUrl);
+    }
+    if(item.youtube&&!item.youtubeVideoId){
+     const yt=window.CDEYouTubePublisher;
+     if(prepared.length!==1||prepared[0].kind!=='VIDEO')throw Error('YouTube Shorts precisa de um vídeo MP4.');
+     const data=await yt.publish({mediaUrl:prepared[0].mediaUrl,
+      title:(item.title||'Novidade CDE Imports').slice(0,100),
+      description:(item.caption||'Confira as novidades em https://cdeimports.site').slice(0,4900),
+      privacyStatus:'public',madeForKids:false});
+     if(!data.published||!data.videoId)throw Error('O YouTube não confirmou o envio do Short.');
+     item.youtubeVideoId=data.videoId;save();
     }
     const result=await ig.prepare({
      kind:item.kind,caption:item.kind.startsWith('STORY_')?'':item.caption,
@@ -301,7 +320,7 @@ async function publish(item,{automatic=false}={}){
     mediaId:item.mediaId
    });
   }
-  notice('Publicação confirmada pela Meta: '+item.title);
+  notice('Publicação confirmada pela Meta'+(item.youtubeVideoId?' e pelo YouTube':'')+': '+item.title);
  }catch(err){
   item.status='attention';item.auto=false;item.error=String(err?.message||'Falha no envio.').slice(0,240);
   notice(item.title+': '+item.error,true);
