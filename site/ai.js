@@ -51,7 +51,8 @@ function offlineCaption(d,id,version,tags){
  if(id==='instagram-stories')body=(version?'👀 Você conhece? ':'✨ Em destaque: ')+d.title+'\n'+(d.brief||question)+'\n'+cta;
  else if(id==='whatsapp-status')body=(version?'👀 Vale conhecer: ':'✨ Destaque: ')+d.title+'\n'+(d.brief||'Confira as informações.')+'\n'+cta;
  else if(id==='whatsapp-group')body=(version?'✨ Confira este produto':'📣 Destaque CDE Imports')+'\n*'+d.title+'*\n'+detail+'\n'+cta;
- else if(['tiktok','instagram-reels','youtube-shorts'].includes(id))body=(version?'✨ Você conhece? ':'👀 Olha isso! ')+d.title+'\n'+(d.brief||'Descubra os detalhes.')+'\n'+question+'\n'+cta;
+ else if(id==='youtube-shorts')body=d.title+' | CDE Imports\n'+(d.brief||'Veja '+d.title+' de perto neste vídeo.')+'\nInscreva-se no canal e conte o que gostaria de conhecer sobre '+d.title+'.';
+ else if(['tiktok','instagram-reels'].includes(id))body=(version?'✨ Você conhece? ':'👀 Olha isso! ')+d.title+'\n'+(d.brief||'Descubra os detalhes.')+'\n'+question+'\n'+cta;
  else if(id==='pinterest')body=d.title+' | CDE Imports\n'+detail+'\n'+(version?question:'Salve esta ideia para consultar depois.')+'\n'+cta;
  else body=head+'\n\n'+d.title+'\n'+detail+'\n\n'+(version?question:'Conheça uma nova opção para suas escolhas.')+'\n'+cta;
  return body+(name[1]?'\n\n'+tags.slice(0,name[1]).join(' '):'');
@@ -168,7 +169,14 @@ $('ai-unblock').addEventListener('click',()=>{
  const d=formData();if(!d.title){status('Informe o nome do produto para gerar ideias.',true);return;}
  state.ideas=ideaSet(d);renderIdeas();status('Quatro ideias prontas para usar na sua campanha.');
 });
-window.CDESocialAI={captionForChannel:channel=>{
+window.CDESocialAI={generateForProduct:async title=>{
+ const d={title:String(title).trim().slice(0,110),brief:'',tone:'premium',goal:'apresentar',channels:['instagram-reels','youtube-shorts']};
+ if(!d.title)throw Error('Informe o nome do produto.');
+ const online=Boolean(window.CDEAIBackend?.status?.().available);
+ const result=online?await window.CDEAIBackend.generate(d):localGenerate(d);
+ const normalized=normalize(result,d,online?'online':'local');
+ return {mode:normalized.mode,captions:Object.fromEntries(normalized.suggestions.map(x=>[x.channel,x.variants[0]]))};
+},captionForChannel:channel=>{
  if(!state.variants.has(channel)||state.signature!==signature(formData()))return null;
  return state.variants.get(channel)?.[state.chosen.get(channel)||0]||null;
 }};

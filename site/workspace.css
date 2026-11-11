@@ -1,0 +1,13 @@
+[hidden]{display:none!important}
+html{scroll-behavior:auto}body{background:#f5f7fb}.shell{max-width:1600px;margin:auto}
+.sidebar{background:#091b3d}.sidebar nav a{font-size:15px;padding:14px 16px;margin-bottom:6px}.advanced-link{margin-top:28px;opacity:.65}
+.top h1{font-size:clamp(24px,3vw,36px);line-height:1.2}.top{margin-bottom:28px}.top p{max-width:680px}
+#instagram-studio{max-width:1000px;margin:0 auto}.ig-bulk-layout{display:block}.ig-bulk-aside{display:none}
+.ig-bulk-form{max-width:760px;margin:auto;display:grid;gap:16px}.ig-bulk-form>label{margin:0}.ig-bulk-form>small{margin-top:-12px;color:#66748b}
+.ig-bulk-form>.ai-tip,#instagram-studio>.hint{display:none}.publish-networks{display:flex;gap:24px;padding:16px;background:#f4f7fc;border-radius:12px}.publish-networks label{display:flex;align-items:center;gap:10px;margin:0}.publish-networks input{width:auto}
+#ig-caption-status{font-size:13px;color:#566680;margin:0}#ig-generate-captions{justify-self:start}textarea{line-height:1.6}
+.publish-options, #conexoes details{border:1px solid #e2e8f0;border-radius:10px;padding:14px}summary{cursor:pointer;font-weight:600;color:#23395f}details[open]>summary{margin-bottom:16px}.publish-options label{margin-top:14px}
+#ig-bulk-add{padding:16px;font-size:15px}.ig-bulk-queue{grid-template-columns:1fr;gap:12px}.ig-job{padding:18px;border-color:#e2e8f0}.ig-job-actions{display:flex;gap:10px;flex-wrap:wrap}.ig-job-actions button{flex:0 1 auto;min-width:140px}.ig-job-hint{display:none}.ig-job details p{white-space:pre-wrap}.ig-job-header strong{overflow-wrap:anywhere}
+#insights .ig-job-actions{display:none}.connection-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#conexoes>.notice{display:none}#conexoes{display:grid;gap:16px}.connection-setup{margin:0}.tiktok-config-guide{margin:0}
+@media(max-width:750px){.sidebar nav{display:flex;flex-wrap:wrap;gap:4px}.sidebar nav a{padding:9px;font-size:13px;margin:0}.advanced-link{display:none}.aside-note{display:none}.connection-grid{grid-template-columns:1fr}.ig-job-actions button{min-width:0}.top{padding-top:8px}}
+.ig-bulk-form{padding:18px;gap:12px}.ig-bulk-form label{padding-top:0}.ig-bulk-form textarea{min-height:92px}.ig-job-header{gap:12px}

@@ -3,10 +3,10 @@
 const $=id=>document.getElementById(id);
 const KEY='cde-instagram-bulk-v1',DB='cde-instagram-media-v1';
 const MB=1024*1024,MAX_ITEMS=60,MAX_IMAGE_SOURCE=50*MB,MAX_REELS=300*MB,MAX_STORY_VIDEO=100*MB;
-const states={draft:'Rascunho',scheduled:'Agendado no navegador',running:'Enviando para Meta',
+const states={draft:'Rascunho',scheduled:'Agendado no navegador',running:'Publicando',
  published:'Publicado (confirmado pela Meta)',attention:'Verificar — não confirmado'};
 let queue=[],selected=[],previews=[],busy=new Set(),dbPromise=null;
-try{const saved=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(saved))queue=saved.filter(x=>x&&typeof x.id==='string'&&Array.isArray(x.items)&&x.items.length).slice(-MAX_ITEMS);}catch{}
+try{const saved=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(saved))queue=saved.filter(x=>x&&typeof x.id==='string'&&Array.isArray(x.items)&&x.items.length).slice(-500);}catch{}
 function db(){
  if(dbPromise)return dbPromise;
  dbPromise=new Promise((resolve,reject)=>{
@@ -105,23 +105,33 @@ function preview(){
 }
 function refresh(){
  const root=$('ig-bulk-queue');root.replaceChildren();
- const line=$('ig-bulk-count');line.textContent=queue.length+' publicações na fila';
- if(!queue.length){root.textContent='A fila está vazia. Selecione fotos ou vídeos para começar.';return;}
+ const pending=queue.filter(x=>x.status!=='published');
+ const history=$('published-history');if(history)history.replaceChildren();
+ const line=$('ig-bulk-count');line.textContent=pending.length+' pendente(s)';
+ if(!pending.length)root.textContent='Nenhuma publicação pendente.';
+ if(history&&!queue.some(x=>x.status==='published'))history.textContent='As publicações concluídas aparecerão aqui.';
  queue.slice().sort((a,b)=>(a.when||'9999').localeCompare(b.when||'9999')).forEach(item=>{
   const card=document.createElement('article');card.className='ig-job';card.dataset.id=item.id;
   const h=document.createElement('div');h.className='ig-job-header';
   const title=document.createElement('strong');title.textContent=item.title;
   const pill=document.createElement('span');pill.className='pill '+(item.status==='published'?'connected':item.status==='attention'?'amber':'');
-  pill.textContent=states[item.status]||item.status;h.append(title,pill);card.append(h);
+  pill.textContent=item.status==='published'?'Publicado':states[item.status]||item.status;h.append(title,pill);card.append(h);
   const summary=document.createElement('p');summary.className='ig-job-desc';
   summary.textContent=item.kind==='CAROUSEL'?'Carrossel · '+item.items.length+' arquivos':
    item.kind.startsWith('STORY_')?'Story · '+(item.kind==='STORY_VIDEO'?'vídeo':'imagem'):
    item.kind==='REELS'?'Reels · MP4':'Feed · imagem';
   summary.textContent+=' · '+timeValue(item.when);
+  summary.textContent+=' · '+[item.instagram!==false?'Instagram':'',item.youtube?'YouTube':''].filter(Boolean).join(' + ');
   if(item.auto&&item.status==='scheduled')summary.textContent+=' · Envio autorizado com aba aberta';
   card.append(summary);
   if(item.status==='attention'&&item.error){const error=document.createElement('p');error.className='ig-job-error';error.textContent=item.error;card.append(error);}
-  if(item.mediaId){const ref=document.createElement('small');ref.textContent='ID confirmado pela Meta: '+item.mediaId;card.append(ref);}
+  if(item.status==='published'){
+   const summary=document.createElement('p');summary.textContent=(item.mediaId?'Instagram publicado':'')+(item.mediaId&&item.youtubeVideoId?' · ':'')+(item.youtubeVideoId?'YouTube publicado':'');card.append(summary);
+   const details=document.createElement('details'),label=document.createElement('summary');label.textContent='Ver legendas e comprovantes';details.append(label);
+   const copy=document.createElement('p');copy.textContent=(item.caption||'')+'\n\n'+(item.youtubeCaption||'');details.append(copy);
+   const proof=document.createElement('small');proof.textContent=[item.mediaId?'Instagram: '+item.mediaId:'',item.youtubeVideoId?'YouTube: '+item.youtubeVideoId:''].filter(Boolean).join(' · ');details.append(proof);card.append(details);
+   if(history)history.append(card);return;
+  }
  if(item.youtube){const ref=document.createElement('small');ref.textContent=item.youtubeVideoId?'Short confirmado no YouTube: '+item.youtubeVideoId:'YouTube Shorts selecionado · aguardando confirmação';card.append(ref);}
   if(item.kind.startsWith('STORY_')){
    if(item.storyMusic){const music=document.createElement('small');music.className='ig-job-hint';music.textContent='Música para adicionar no celular: '+item.storyMusic;card.append(music);}
@@ -214,6 +224,11 @@ function buildItems(files,kind,caption,when,auto,text,cta,link,music,intervalHou
 async function addToQueue(){
  const format=$('ig-bulk-format').value,when=$('ig-bulk-time').value,auto=$('ig-bulk-auto').checked;
  const youtube=Boolean($('ig-bulk-youtube')?.checked);
+ const instagram=$('ig-bulk-instagram')?.checked!==false;
+ const product=$('ig-product-name').value.trim();
+ if(!product)return notice('Informe o nome do produto, por exemplo Dior Sauvage.',true);
+ if(!instagram&&!youtube)return notice('Selecione Instagram ou YouTube.',true);
+ if(captionProduct!==product){if(!await generateProductCaptions())return;}
  let remotes;
  try{remotes=parseRemoteItems();}catch(err){return notice(err.message||String(err),true);}
  const allMedia=[...selected,...remotes.map(x=>x.file)];
@@ -224,7 +239,7 @@ async function addToQueue(){
  if(youtube&&(format!=='REELS'&&format!=='AUTO'||allMedia.some(x=>x.type!=='video/mp4')))
   return notice('Para publicar também no YouTube, selecione somente vídeos MP4 no modo Reels ou Automático.',true);
  if(youtube&&remotes.length)return notice('O YouTube exige arquivos MP4 locais; links públicos não são aceitos para o envio conjunto.',true);
- if(queue.length+allMedia.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
+ if(queue.filter(x=>x.status!=='published').length+allMedia.length>MAX_ITEMS)return notice('Limite de 60 itens locais atingido. Remova publicações anteriores.',true);
  if(format==='STORIES'&&($('ig-story-link').value.trim()||$('ig-story-music-name').value.trim())&&auto)return notice('Stories com link ou música da biblioteca precisam ser finalizados no aplicativo Instagram. Desmarque envio automático.',true);
  if(auto&&!when)return notice('Escolha data e hora antes de autorizar a publicação automática.',true);
  if(auto&&new Date(when).getTime()<=Date.now())return notice('O horário automático deve estar no futuro.',true);
@@ -232,7 +247,8 @@ async function addToQueue(){
  if(auto&&!window.confirm('Você autoriza o envio automático destes posts para o Instagram quando chegar o horário, SOMENTE com esta página aberta e sua sessão ativa?'))return;
  const caption=$('ig-bulk-caption').value.trim().slice(0,2200),text=$('ig-story-text').value.trim().slice(0,130);
  const cta=$('ig-story-cta').value.trim().slice(0,85),link=$('ig-story-link').value.trim().slice(0,1800),music=$('ig-story-music-name').value.trim().slice(0,100);
- if(format!=='STORIES'&&!caption)return notice('Informe uma legenda. Para Stories, o texto pode ser incorporado na imagem.',true);
+ if(instagram&&format!=='STORIES'&&!caption)return notice('Informe uma legenda. Para Stories, o texto pode ser incorporado na imagem.',true);
+ if(youtube&&!$('ig-youtube-caption').value.trim())return notice('Informe a descrição do YouTube.',true);
  if(format==='STORIES'&&selected.length&&selected.some(x=>x.type==='video/mp4')&&(text||cta))
   notice('A sobreposição de texto se aplica somente às imagens; vídeo precisa ser editado antes do upload.');
  if(selected.some(x=>x.size>100*MB)){
@@ -246,7 +262,7 @@ async function addToQueue(){
   }
   refs.push(...remotes);
   const entries=buildItems(refs,format,caption,when,auto,text,cta,link,music,intervalHours);
-  for(const entry of entries)entry.youtube=youtube&&entry.kind==='REELS';
+  for(const entry of entries){entry.youtube=youtube&&entry.kind==='REELS';entry.instagram=instagram;entry.title=product;entry.youtubeCaption=$('ig-youtube-caption').value.trim().slice(0,4900);}
   queue.push(...entries);save();selected=[];$('ig-bulk-files').value='';$('ig-bulk-urls').value='';preview();refresh();
   notice(entries.length+' publicação(ões) adicionada(s). Arquivos guardados somente neste navegador.');
  }catch(e){notice('Falha ao armazenar os arquivos: '+String(e.message||e),true);}
@@ -260,7 +276,7 @@ async function publish(item,{automatic=false}={}){
  if(item.youtube&&!item.youtubeVideoId&&!window.CDEYouTubePublisher?.status?.().ready){
   item.status='attention';item.error='Conecte e autorize o canal YouTube na seção Conexões.';save();refresh();return;
  }
- if(!ig?.status?.().ready){
+ if(item.instagram!==false&&!ig?.status?.().ready){
   item.status='attention';item.error='Conecte e autorize o Instagram na seção Conexões. Nenhum post enviado.';save();refresh();return;
  }
  busy.add(item.id);item.status='running';item.error='';save();refresh();
@@ -289,10 +305,15 @@ async function publish(item,{automatic=false}={}){
      if(prepared.length!==1||prepared[0].kind!=='VIDEO')throw Error('YouTube Shorts precisa de um vídeo MP4.');
      const data=await yt.publish({mediaUrl:prepared[0].mediaUrl,
       title:(item.title||'Novidade CDE Imports').slice(0,100),
-      description:(item.caption||'Confira as novidades em https://cdeimports.site').slice(0,4900),
+      description:(item.youtubeCaption||item.caption||'Confira as novidades em https://cdeimports.site').slice(0,4900),
       privacyStatus:'public',madeForKids:false});
      if(!data.published||!data.videoId)throw Error('O YouTube não confirmou o envio do Short.');
      item.youtubeVideoId=data.videoId;save();
+     window.CDESocialData?.markYouTubePublished?.({title:item.title,caption:item.youtubeCaption||item.caption,videoId:data.videoId});
+    }
+    if(item.instagram===false){
+     if(!item.youtubeVideoId)throw Error('O YouTube não confirmou a publicação.');
+     confirmed=true;item.status='published';item.publishedAt=new Date().toISOString();item.error='';notice('Publicação confirmada no YouTube: '+item.title);return;
     }
     const result=await ig.prepare({
      kind:item.kind,caption:item.kind.startsWith('STORY_')?'':item.caption,
@@ -343,10 +364,36 @@ async function scan(){
   }
  }finally{schedulerBusy=false;}
 }
-$('ig-bulk-files').addEventListener('change',event=>{selected=[...event.target.files].slice(0,20);preview();});
+let captionProduct='',generation=0,captionTimer;
+async function generateProductCaptions(){
+ const product=$('ig-product-name').value.trim(),request=++generation;
+ const status=$('ig-caption-status');
+ if(!product){status.textContent='Informe o nome do produto.';return false;}
+ status.textContent='Gerando uma legenda para cada rede…';
+ $('ig-generate-captions').disabled=true;
+ try{
+  const result=await window.CDESocialAI.generateForProduct(product);
+  if(request!==generation||$('ig-product-name').value.trim()!==product)return false;
+  $('ig-bulk-caption').value=result.captions['instagram-reels'];
+  $('ig-youtube-caption').value=result.captions['youtube-shorts'];
+  captionProduct=product;
+  status.textContent=result.mode==='online'?'Legendas geradas por IA. Revise antes de publicar.':'Legendas locais pelo nome do produto. Entre em Conexões para usar a IA online.';
+  return true;
+ }catch(error){if(request===generation)status.textContent='Não foi possível gerar: '+String(error.message||error)+'. Tente novamente.';return false;}
+ finally{if(request===generation)$('ig-generate-captions').disabled=false;}
+}
+$('ig-generate-captions').addEventListener('click',generateProductCaptions);
+$('ig-product-name').addEventListener('input',()=>{
+ generation++;captionProduct='';clearTimeout(captionTimer);
+ $('ig-generate-captions').disabled=false;
+ captionTimer=setTimeout(()=>generateProductCaptions(),800);
+});
+$('ig-bulk-files').addEventListener('change',event=>{selected=[...event.target.files].slice(0,20);preview();if($('ig-product-name').value.trim()&&captionProduct!==$('ig-product-name').value.trim())generateProductCaptions();});
 $('ig-bulk-format').addEventListener('change',()=>{
  const on=$('ig-bulk-format').value==='STORIES';
  $('ig-story-options').hidden=!on;
+ const video=['REELS','AUTO'].includes($('ig-bulk-format').value);
+ $('ig-bulk-youtube').disabled=!video;if(!video)$('ig-bulk-youtube').checked=false;
 });
 $('ig-bulk-add').addEventListener('click',addToQueue);
 $('ig-bulk-import-caption').addEventListener('click',()=>{
@@ -356,7 +403,7 @@ $('ig-bulk-import-caption').addEventListener('click',()=>{
  if(!caption)return notice('Gere primeiro uma legenda na área Inteligência Artificial para esta rede.',true);
  $('ig-bulk-caption').value=caption;notice('Legenda importada do Gemini para '+channel+'.');
 });
-$('ig-bulk-queue').addEventListener('click',async event=>{
+async function queueAction(event){
  const button=event.target.closest('button[data-action]');if(!button)return;
  const parent=button.closest('[data-id]'),item=queue.find(x=>x.id===parent?.dataset.id);if(!item)return;
  if(button.dataset.action==='delete'){
@@ -392,14 +439,18 @@ $('ig-bulk-queue').addEventListener('click',async event=>{
   return;
  }
  if(button.dataset.action==='edit'){
-  const next=window.prompt('Edite a legenda local deste post (não altera post já publicado):',item.caption);
-  if(next===null)return;item.caption=next.trim().slice(0,2200);save();refresh();return;
+  if(item.instagram!==false){const next=window.prompt('Legenda do Instagram:',item.caption);if(next===null)return;item.caption=next.trim().slice(0,2200);}
+  if(item.youtube){const next=window.prompt('Descrição do YouTube:',item.youtubeCaption||item.caption);if(next!==null)item.youtubeCaption=next.trim().slice(0,4900);}
+  save();refresh();return;
  }
  if(button.dataset.action==='publish'){
-  if(!window.confirm('Publicar AGORA '+item.title+' no Instagram conectado? Isso publica a mídia, sem stickers de música ou link.'))return;
+  const destinations=[item.instagram!==false?'Instagram':'',item.youtube&&!item.youtubeVideoId?'YouTube':''].filter(Boolean).join(' e ');
+  if(!window.confirm('Publicar AGORA '+item.title+' em '+destinations+'?'))return;
   await publish(item);return;
  }
-});
+}
+$('ig-bulk-queue').addEventListener('click',queueAction);
+$('published-history')?.addEventListener('click',queueAction);
 window.addEventListener('focus',scan);
 setInterval(scan,30000);
 refresh();
