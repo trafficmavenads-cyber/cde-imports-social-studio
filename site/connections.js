@@ -181,8 +181,8 @@ window.CDEInstagramPublisher={
  uploadMedia:async blob=>{
   if(!session||!api)throw Error('Entre no painel administrativo antes de enviar arquivos.');
   if(!blob||!['image/jpeg','video/mp4'].includes(blob.type))throw Error('Formato de upload inválido. Use JPEG ou MP4.');
-  const cap=blob.type==='video/mp4'?24*1024*1024:8*1024*1024;
-  if(blob.size>cap)throw Error('O Render Free aceita JPEG até 8 MB ou MP4 até 24 MB. Para vídeos maiores, utilize uma URL pública.');
+  const cap=blob.type==='video/mp4'?300*1024*1024:8*1024*1024;
+  if(blob.size>cap)throw Error('Limite: JPEG convertido até 8 MB ou MP4 até 300 MB. Vídeos maiores precisam de URL pública.');
   const r=await fetch(api+'/api/instagram/media/upload',{
    method:'POST',mode:'cors',cache:'no-store',
    headers:{Authorization:'Bearer '+session,'Content-Type':blob.type},body:blob
