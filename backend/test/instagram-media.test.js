@@ -66,3 +66,50 @@ test('O editor envia JPEG temporário com sessão; Meta pode ler por URL públic
   if(child.exitCode===null){child.kill('SIGTERM');await new Promise(ok=>child.once('exit',ok));}
  }
 });
+
+
+test('Upload MP4 acima do antigo limite 24 MB usa streaming e suporta Range/HEAD sem carregar o vídeo em RAM',async()=>{
+ const password='TesteStreamingRenderInstagram2026!';
+ const port=18979;
+ const child=spawn(process.execPath,[path.resolve(__dirname,'../demo-server.js')],{
+  env:{...process.env,PORT:String(port),ADMIN_PASSWORD:password,GEMINI_API_KEY:'mock-key',
+   INSTAGRAM_CLIENT_ID:'',INSTAGRAM_CLIENT_SECRET:'',TIKTOK_CLIENT_ID:'',TIKTOK_CLIENT_SECRET:''},
+  stdio:'ignore'
+ });
+ const base='http://127.0.0.1:'+port;
+ try{
+  let ready=false;
+  for(let i=0;i<70;i++){
+   try{const r=await fetch(base+'/api/health');if(r.ok){ready=true;break;}}catch{}
+   await sleep(85);
+  }
+  assert.equal(ready,true);
+  const login=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({password})});
+  assert.equal(login.status,200);
+  const session=(await login.json()).session;
+  const large=Buffer.alloc(26*1024*1024);
+  large.write('ftyp',4,'ascii');
+  const uploaded=await fetch(base+'/api/instagram/media/upload',{
+   method:'POST',headers:{'Content-Type':'video/mp4',Authorization:'Bearer '+session},body:large
+  });
+  const data=await uploaded.json();
+  assert.equal(uploaded.status,201,JSON.stringify(data));
+  assert.equal(data.bytes,large.length);
+  const link=new URL(data.mediaUrl);
+  assert.match(link.pathname,/\.mp4$/);
+  const head=await fetch(base+link.pathname,{method:'HEAD'});
+  assert.equal(head.status,200);
+  assert.equal(head.headers.get('content-length'),String(large.length));
+  assert.equal(head.headers.get('accept-ranges'),'bytes');
+  const partial=await fetch(base+link.pathname,{headers:{Range:'bytes=4-15'}});
+  assert.equal(partial.status,206);
+  assert.equal(partial.headers.get('content-range'),'bytes 4-15/'+large.length);
+  assert.equal(partial.headers.get('content-length'),'12');
+  assert.equal(Buffer.from(await partial.arrayBuffer()).subarray(0,4).toString('ascii'),'ftyp');
+  const invalid=await fetch(base+link.pathname,{headers:{Range:'bytes=999999999-'}});
+  assert.equal(invalid.status,416);
+ }finally{
+  if(child.exitCode===null){child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}
+ }
+});
