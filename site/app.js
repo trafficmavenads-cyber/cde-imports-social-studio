@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 const byId=id=>document.getElementById(id), STORAGE='cdeimports-social-studio-web-v1';
-const channels={"instagram-feed":"Instagram Feed","instagram-stories":"Instagram Stories","instagram-reels":"Instagram Reels","tiktok":"TikTok","pinterest":"Pinterest","youtube-shorts":"YouTube Shorts","whatsapp-group":"WhatsApp Grupo","whatsapp-status":"WhatsApp Status"};
+const channels={"instagram-feed":"Instagram Feed","instagram-stories":"Instagram Stories","instagram-reels":"Instagram Reels","tiktok":"TikTok","pinterest":"Pinterest","youtube-shorts":"YouTube Shorts","youtube-video":"YouTube Vídeo","whatsapp-group":"WhatsApp Grupo","whatsapp-status":"WhatsApp Status"};
 let items=[];try{let saved=JSON.parse(localStorage.getItem(STORAGE)||'[]');if(Array.isArray(saved))items=saved.filter(x=>x&&x.id&&x.when&&channels[x.channel]).slice(-500);}catch{}
 let image=new Image(), imageReady=false, logo=new Image(), logoReady=false, calMonth=new Date(), currentFileUrl='';
 logo.onload=()=>{logoReady=true;draw();};logo.src='assets/logo.png';
@@ -60,10 +60,10 @@ function markInstagramPublished({title,channel,caption,mediaId}){
  }
  items=items.slice(-500);save();render();
 }
-function markYouTubePublished({title,caption,videoId}){
+function markYouTubePublished({title,caption,videoId,channel='youtube-shorts'}){
  if(typeof videoId!=='string'||!videoId||items.some(x=>x.youtubeVideoId===videoId))return;
  const id='yt-'+videoId;
- items.push({id,campaignId:id,title,caption,channel:'youtube-shorts',youtubeVideoId:videoId,status:'published',externalPublished:true,when:new Date().toISOString(),publishedAt:new Date().toISOString(),created:new Date().toISOString(),views:null,likes:null,comments:null,shares:null});
+ items.push({id,campaignId:id,title,caption,channel,youtubeVideoId:videoId,status:'published',externalPublished:true,when:new Date().toISOString(),publishedAt:new Date().toISOString(),created:new Date().toISOString(),views:null,likes:null,comments:null,shares:null});
  items=items.slice(-500);save();render();
 }
 window.CDESocialData={markYouTubePublished,getItems:()=>items.map(x=>({...x})),markInstagramPublished,hasImage:()=>imageReady};

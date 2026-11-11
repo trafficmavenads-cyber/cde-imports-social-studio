@@ -80,6 +80,7 @@ function createPublisher({getAccount,callMeta}){
   const kind=input?.kind;
   if(!['IMAGE','REELS','STORY_IMAGE','STORY_VIDEO','CAROUSEL'].includes(kind))
    return {code:400,body:{error:'Formato inválido. Use Feed, Reels, Story ou Carrossel.'}};
+  if(input.shareToFeed!==undefined&&typeof input.shareToFeed!=='boolean')return {code:400,body:{error:'Escolha de Feed inválida.'}};
   const isStory=kind.startsWith('STORY_');
   const caption=typeof input.caption==='string'?input.caption.trim():'';
   if(!isStory&&(!caption||caption.length>2200))
@@ -117,7 +118,7 @@ function createPublisher({getAccount,callMeta}){
     else args.caption=caption;
     if(items[0].kind==='IMAGE')args.image_url=items[0].mediaUrl;
     else{
-     if(kind==='REELS'){args.media_type='REELS';args.share_to_feed='true';}
+     if(kind==='REELS'){args.media_type='REELS';args.share_to_feed=input.shareToFeed===false?'false':'true';}
      args.video_url=items[0].mediaUrl;
     }
     job.containerId=await createContainer(account,args);

@@ -11,3 +11,10 @@ html{scroll-behavior:auto}body{background:#f5f7fb}.shell{max-width:1600px;margin
 #insights .ig-job-actions{display:none}.connection-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#conexoes>.notice{display:none}#conexoes{display:grid;gap:16px}.connection-setup{margin:0}.tiktok-config-guide{margin:0}
 @media(max-width:750px){.sidebar nav{display:flex;flex-wrap:wrap;gap:4px}.sidebar nav a{padding:9px;font-size:13px;margin:0}.advanced-link{display:none}.aside-note{display:none}.connection-grid{grid-template-columns:1fr}.ig-job-actions button{min-width:0}.top{padding-top:8px}}
 .ig-bulk-form{padding:18px;gap:12px}.ig-bulk-form label{padding-top:0}.ig-bulk-form textarea{min-height:92px}.ig-job-header{gap:12px}
+/* Integrated video editor and direct destination picker. */
+#studio>.panel:first-child>.notice,#studio #inteligencia,#studio #channels,#studio .title-inline,#studio #save,#studio #copy{display:none}
+#studio>.panel:first-child>label:has(#caption),#studio>.panel:first-child>.two:has(#when){display:none}
+#studio>.panel:first-child>.two:has(#checkout){display:none}
+#studio .media-uploads{display:block}#studio #export-video{display:none!important}
+.direct-controls{margin-top:20px;display:grid;gap:14px}.direct-controls label{margin:0}.direct-destinations{border:1px solid #dce4f0;border-radius:10px;display:flex;flex-wrap:wrap;gap:16px;padding:16px}.direct-destinations label{display:flex;gap:8px;align-items:center}.direct-destinations input{width:auto;margin:0}.direct-destinations legend{font-weight:700;padding:0 5px}.direct-controls .hint{margin:0;font-size:12px}.direct-controls h3{margin:8px 0 0}#direct-status{white-space:pre-wrap;color:#205b44}#direct-status.error{color:#a22a40}.image-tools{margin:12px 0}#video-frame[data-format=landscape]{aspect-ratio:16/9;max-width:100%}#video-frame:has(video){max-width:100%}.preview{position:sticky;top:20px}
+@media(max-width:1250px){.preview{position:static}}

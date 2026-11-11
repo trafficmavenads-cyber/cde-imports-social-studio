@@ -120,6 +120,7 @@ function refresh(){
   summary.textContent=item.kind==='CAROUSEL'?'Carrossel · '+item.items.length+' arquivos':
    item.kind.startsWith('STORY_')?'Story · '+(item.kind==='STORY_VIDEO'?'vídeo':'imagem'):
    item.kind==='REELS'?'Reels · MP4':'Feed · imagem';
+  if(item.destinationLabel)summary.textContent=item.destinationLabel;
   summary.textContent+=' · '+timeValue(item.when);
   summary.textContent+=' · '+[item.instagram!==false?'Instagram':'',item.youtube?'YouTube':''].filter(Boolean).join(' + ');
   if(item.auto&&item.status==='scheduled')summary.textContent+=' · Envio autorizado com aba aberta';
@@ -303,20 +304,20 @@ async function publish(item,{automatic=false}={}){
     if(item.youtube&&!item.youtubeVideoId){
      const yt=window.CDEYouTubePublisher;
      if(prepared.length!==1||prepared[0].kind!=='VIDEO')throw Error('YouTube Shorts precisa de um vídeo MP4.');
-     const data=await yt.publish({mediaUrl:prepared[0].mediaUrl,
+     const data=await yt.publish({mediaUrl:prepared[0].mediaUrl,videoType:item.youtubeChannel==='youtube-video'?'video':'shorts',
       title:(item.title||'Novidade CDE Imports').slice(0,100),
       description:(item.youtubeCaption||item.caption||'Confira as novidades em https://cdeimports.site').slice(0,4900),
       privacyStatus:'public',madeForKids:false});
      if(!data.published||!data.videoId)throw Error('O YouTube não confirmou o envio do Short.');
      item.youtubeVideoId=data.videoId;save();
-     window.CDESocialData?.markYouTubePublished?.({title:item.title,caption:item.youtubeCaption||item.caption,videoId:data.videoId});
+     window.CDESocialData?.markYouTubePublished?.({title:item.title,caption:item.youtubeCaption||item.caption,videoId:data.videoId,channel:item.youtubeChannel||'youtube-shorts'});
     }
     if(item.instagram===false){
      if(!item.youtubeVideoId)throw Error('O YouTube não confirmou a publicação.');
      confirmed=true;item.status='published';item.publishedAt=new Date().toISOString();item.error='';notice('Publicação confirmada no YouTube: '+item.title);return;
     }
     const result=await ig.prepare({
-     kind:item.kind,caption:item.kind.startsWith('STORY_')?'':item.caption,
+     kind:item.kind,shareToFeed:item.shareToFeed,caption:item.kind.startsWith('STORY_')?'':item.caption,
      mediaUrl:prepared.length===1?prepared[0].mediaUrl:undefined,
      items:item.kind==='CAROUSEL'?prepared:undefined
     });
@@ -451,6 +452,36 @@ async function queueAction(event){
 }
 $('ig-bulk-queue').addEventListener('click',queueAction);
 $('published-history')?.addEventListener('click',queueAction);
+window.CDEDirectQueue={
+ enqueue:async ({title,entries})=>{
+  if(!title?.trim()||!Array.isArray(entries)||!entries.length)throw Error('Selecione os destinos e informe o produto.');
+  if(queue.filter(x=>x.status!=='published').length+entries.length>MAX_ITEMS)throw Error('A fila está cheia. Resolva as publicações pendentes.');
+  const created=[],stored=[];
+  try{
+   for(const entry of entries){
+    if(!entry.blob||entry.blob.type!=='video/mp4'||entry.blob.size>300*MB)throw Error('Vídeo editado inválido ou maior que 300 MB.');
+    const key=id(),file=new File([entry.blob],title.slice(0,70)+'.mp4',{type:'video/mp4'});
+    await putFile(key,file);stored.push(key);
+    created.push({id:id(),title:title.trim().slice(0,110),kind:entry.kind,instagram:!entry.youtube,youtube:Boolean(entry.youtube),
+     youtubeChannel:entry.youtubeChannel,youtubeCaption:entry.caption,caption:entry.caption,shareToFeed:entry.shareToFeed,
+     destinationLabel:entry.label,status:'draft',when:null,auto:false,created:new Date().toISOString(),
+     items:[{key,name:file.name,mediaType:'video/mp4'}]});
+   }
+   queue.push(...created);
+   if(!save()){queue=queue.filter(x=>!created.includes(x));throw Error('Não foi possível salvar a fila; nenhum envio iniciado.');}
+   refresh();return created.map(x=>x.id);
+  }catch(error){for(const key of stored)await delFile(key).catch(()=>{});throw error;}
+ },
+ publish:async ids=>{
+  const results=[];
+  for(const key of ids){
+   const item=queue.find(x=>x.id===key);if(!item)continue;
+   await publish(item);
+   results.push({id:item.id,label:item.destinationLabel,status:item.status,error:item.error||''});
+  }
+  return results;
+ }
+};
 window.addEventListener('focus',scan);
 setInterval(scan,30000);
 refresh();

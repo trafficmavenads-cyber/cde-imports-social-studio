@@ -141,7 +141,7 @@ async function handler(req,res){
  }
  if(req.method==='GET'&&url==='/api/health'){
   return reply(req,res,200,{
-   ok:true,service:'CDE Imports Social Studio',version:'0.15.0',
+   ok:true,service:'CDE Imports Social Studio',version:'0.16.0',
    mode:authEnabled?'oauth-temporary':'demo',demoMode:!authEnabled,temporaryStorage:true,
    providerConfigured:{instagram:instagramEnabled,tiktok:enabled,pinterest:false,youtube:youtubeEnabled},
    aiConfigured:aiEnabled,aiProvider:aiEnabled?AI_PROVIDER:null,aiModel:aiEnabled?(AI_PROVIDER==='gemini'?GEMINI_MODEL:AI_MODEL):null,aiEndpoint:'/api/ai/captions',
@@ -326,7 +326,7 @@ async function handler(req,res){
  const session=sessionKey(req);
  if(!session)return reply(req,res,401,{error:'Sessão administrativa expirada. Entre novamente.'});
  if(req.method==='GET'&&url==='/api/accounts')return reply(req,res,200,{accounts:accountRows(session),temporaryStorage:true});
- if(req.method==='POST'&&url==='/api/youtube/shorts/publish'){
+ if(req.method==='POST'&&['/api/youtube/shorts/publish','/api/youtube/videos/publish'].includes(url)){
   if(!youtubeEnabled)return reply(req,res,409,{error:'Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no Render.'});
   const input=await getBody(req);
   const result=await youtubePublisher.publish(session,input);

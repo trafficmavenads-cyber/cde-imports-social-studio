@@ -175,7 +175,7 @@ window.CDEYouTubePublisher={
   const account=accounts.find(x=>x.id==='youtube');
   return {configured:Boolean(health?.providerConfigured?.youtube),ready:Boolean(session&&account?.connected&&account.status==='connected'&&String(account.scopes||'').includes('youtube.upload')),channel:account?.label||null};
  },
- publish:input=>request('/api/youtube/shorts/publish',{method:'POST',body:JSON.stringify(input)})
+ publish:input=>request(input.videoType==='video'?'/api/youtube/videos/publish':'/api/youtube/shorts/publish',{method:'POST',body:JSON.stringify(input)})
 };
 window.CDEInstagramPublisher={
  status:()=>{
@@ -202,7 +202,7 @@ window.CDEInstagramPublisher={
  },
  releaseMedia:async mediaUrls=>request('/api/instagram/media/release',{method:'POST',body:JSON.stringify({mediaUrls})}),
  uploadImage:async blob=>window.CDEInstagramPublisher.uploadMedia(blob),
- prepare:async ({kind,mediaUrl,caption,items})=>request('/api/instagram/publish/prepare',{method:'POST',body:JSON.stringify({kind,mediaUrl,caption,items})}),
+ prepare:async ({kind,mediaUrl,caption,items,shareToFeed})=>request('/api/instagram/publish/prepare',{method:'POST',body:JSON.stringify({kind,mediaUrl,caption,items,shareToFeed})}),
  checkStatus:async jobId=>request('/api/instagram/publish/status',{method:'POST',body:JSON.stringify({jobId})}),
  confirm:async jobId=>request('/api/instagram/publish/confirm',{method:'POST',body:JSON.stringify({jobId,confirm:true})}),
  refreshAccounts:async ()=>{if(!session)return null;const data=await request('/api/accounts');accounts=data.accounts||[];render();return data;}

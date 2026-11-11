@@ -4,7 +4,8 @@
 (function cdeMP4Module(global){
  'use strict';
  const FFMPEG_UMD='https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.15/umd';
- const FFMPEG_CORE='https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
+ const FFMPEG_CORE='https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
+ const FFMPEG_ESM='https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm';
  let scriptLoad=null;
  const encodeType=(mime)=>String(mime||'').split(';')[0].trim().toLowerCase();
  function chooseRecorderMime(recorderClass=global.MediaRecorder){
@@ -45,6 +46,29 @@
   }
   return {valid:ftyp,fastStart:ftyp&&moov};
  }
+ // Inspect actual sample descriptions: some browsers claim AAC but record Opus.
+ async function inspectCodecs(blob){
+  const bytes=new Uint8Array(await blob.slice(0,Math.min(blob.size,2*1024*1024)).arrayBuffer());
+  const view=new DataView(bytes.buffer),found=[];
+  const name=offset=>String.fromCharCode(...bytes.slice(offset,offset+4));
+  function walk(start,end,depth=0){
+   if(depth>8)return;
+   for(let off=start;off+8<=end;){
+    const size=view.getUint32(off),kind=name(off+4);
+    if(size<8||off+size>end)break;
+    if(['moov','trak','mdia','minf','stbl'].includes(kind))walk(off+8,off+size,depth+1);
+    if(kind==='stsd'&&size>=16){
+     const count=view.getUint32(off+12);let entry=off+16;
+     for(let i=0;i<count&&entry+8<=off+size;i++){
+      const length=view.getUint32(entry);if(length<8||entry+length>off+size)break;
+      found.push(name(entry+4));entry+=length;
+     }
+    }
+    off+=size;
+   }
+  }
+  walk(0,bytes.length);return found;
+ }
  function script(){
   if(global.FFmpegWASM?.FFmpeg)return Promise.resolve();
   if(scriptLoad)return scriptLoad;
@@ -65,7 +89,9 @@
  }
  async function convertToMP4(input,{native=false,onProgress=()=>{}}={}){
   const current=native?await examineMP4(input):{valid:false,fastStart:false};
-  if(native&&current.valid&&current.fastStart)return input;
+  const codecs=native?await inspectCodecs(input):[];
+  const incompatible=codecs.some(codec=>!['avc1','avc3','mp4a'].includes(codec));
+  if(native&&current.valid&&current.fastStart&&!incompatible)return input;
   if(input.size>180*1024*1024)
    throw Error('Para vídeos longos, faça a conversão em trechos menores. A conversão local MP4 aceita até 180 MB de gravação.');
   onProgress('Carregando conversor MP4 gratuito no navegador (aproximadamente 32 MB)...');
@@ -74,7 +100,9 @@
   const temporary=[];
   const inputName=native?'cde-source.mp4':'cde-source.webm';
   try{
-   const worker=await blobURL(FFMPEG_UMD+'/814.ffmpeg.js','text/javascript');
+   // FFmpeg 0.12 creates a module worker when classWorkerURL is supplied.
+   // Use the official ESM worker; UMD importScripts fails inside module workers.
+   const worker=URL.createObjectURL(new Blob(['import "'+FFMPEG_ESM+'/worker.js";'],{type:'text/javascript'}));
    temporary.push(worker);
    const core=await blobURL(FFMPEG_CORE+'/ffmpeg-core.js','text/javascript');
    temporary.push(core);
@@ -84,7 +112,7 @@
    onProgress(native?'Finalizando o MP4 para Instagram...':'Convertendo vídeo para H.264 e áudio AAC (MP4)...');
    await ffmpeg.writeFile(inputName,new Uint8Array(await input.arrayBuffer()));
    const args=native?
-    ['-i',inputName,'-c:v','copy','-c:a','copy','-movflags','+faststart','cde-result.mp4']:
+    ['-i',inputName,'-c:v',codecs.some(x=>['vp09','hvc1','hev1','av01'].includes(x))?'libx264':'copy','-c:a',incompatible?'aac':'copy','-movflags','+faststart','cde-result.mp4']:
     ['-i',inputName,'-c:v','libx264','-preset','ultrafast','-crf','24',
      '-pix_fmt','yuv420p','-r','24','-c:a','aac','-b:a','128k','-ar','48000',
      '-movflags','+faststart','cde-result.mp4'];
@@ -100,14 +128,17 @@
    const result=new Blob([data],{type:'video/mp4'});
    const checked=await examineMP4(result);
    if(!checked.valid||!checked.fastStart)throw Error('O MP4 resultante não possui estrutura adequada para o Instagram.');
+   if((await inspectCodecs(result)).some(x=>!['avc1','avc3','mp4a'].includes(x)))throw Error('O vídeo convertido ainda não possui codecs compatíveis com o Instagram.');
    if(!result.size)throw Error('O MP4 convertido ficou vazio.');
    return result;
+  }catch(error){
+   throw error instanceof Error?error:new Error(String(error||'Falha no conversor MP4.'));
   }finally{
    try{ffmpeg.terminate();}catch{}
    for(const url of temporary)URL.revokeObjectURL(url);
   }
  }
- const api={chooseRecorderMime,examineMP4,convertToMP4};
+ const api={chooseRecorderMime,examineMP4,inspectCodecs,convertToMP4};
  global.CDEMP4=api;
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

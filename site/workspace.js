@@ -4,7 +4,7 @@
  const views=['instagram-studio','insights','conexoes','studio'];
  const topSections=[...main.children].filter(n=>n.tagName==='SECTION');
  function route(){
-  const requested=location.hash.slice(1)||'instagram-studio';
+  const requested=location.hash.slice(1)||'studio';
   const view=views.includes(requested)?requested:requested==='inteligencia'?'studio':'instagram-studio';
   for(const section of topSections)section.hidden=section.id!==view;
   document.querySelectorAll('.sidebar nav a').forEach(a=>{

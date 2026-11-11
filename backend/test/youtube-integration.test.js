@@ -22,11 +22,13 @@ test('YouTube OAuth: conexão configurada, URL Google válida e publicação pro
   const anon=await fetch(base+'/api/youtube/shorts/publish',{method:'POST',
    headers:{'Content-Type':'application/json'},body:'{}'});
   assert.equal(anon.status,401);
+  assert.equal((await fetch(base+'/api/youtube/videos/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).status,401);
   const login=await fetch(base+'/api/login',{method:'POST',
    headers:{'Content-Type':'application/json'},body:JSON.stringify({password})});
   assert.equal(login.status,200);
   const {session}=await login.json();
   const auth={Authorization:'Bearer '+session};
+  assert.equal((await fetch(base+'/api/youtube/videos/publish',{method:'POST',headers:{...auth,'Content-Type':'application/json'},body:'{}'})).status,409);
   const oauth=await fetch(base+'/api/oauth/start/youtube',{method:'POST',headers:auth});
   assert.equal(oauth.status,200);
   const u=new URL((await oauth.json()).authorizationUrl);

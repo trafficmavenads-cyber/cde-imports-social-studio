@@ -95,3 +95,18 @@ test('Falha ambígua impede segundo envio para não duplicar publicação',async
  assert.equal(again.code,409);
  assert.equal(calls.filter(x=>x.url.endsWith('/media_publish')).length,1);
 });
+
+ test('Reels respeitam seleção de Feed sem criar publicação duplicada',async()=>{
+ for(const shareToFeed of [true,false]){
+  const {client,calls}=make();
+  const result=await client.prepare('s',{kind:'REELS',mediaUrl:'https://cdn.exemplo.com/a.mp4',caption:'Dior Sauvage',shareToFeed});
+  assert.equal(result.code,200);
+  const containers=calls.filter(x=>x.url.endsWith('/media'));
+  assert.equal(containers.length,1);
+  const body=new URLSearchParams(containers[0].body);
+  assert.equal(body.get('media_type'),'REELS');
+  assert.equal(body.get('share_to_feed'),String(shareToFeed));
+ }
+ const {client}=make();
+ assert.equal((await client.prepare('s',{kind:'REELS',mediaUrl:'https://cdn.exemplo.com/a.mp4',caption:'Produto',shareToFeed:'false'})).code,400);
+});

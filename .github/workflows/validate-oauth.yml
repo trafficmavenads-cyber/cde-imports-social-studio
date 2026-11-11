@@ -11,6 +11,8 @@ on:
       - "site/app.js"
       - "site/video.js"
       - "site/mp4-export.js"
+      - "site/direct-publish.js"
+      - "site/workspace.js"
       - ".github/workflows/validate-oauth.yml"
   pull_request:
     paths:
@@ -38,6 +40,8 @@ jobs:
           node --check site/app.js
           node --check site/video.js
           node --check site/mp4-export.js
+          node --check site/direct-publish.js
+          node --check site/workspace.js
           node --check backend/test/mp4-export.test.js
           node --check backend/demo-server.js
           node --check backend/instagram-publisher.js

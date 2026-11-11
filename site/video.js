@@ -10,7 +10,7 @@ function status(message,error=false){info.textContent=message;info.style.color=e
 function message(msg,error=false){const m=byId("message");m.textContent=msg;m.style.color=error?"#b92344":"#175b98";}
 const prettySize=n=>n<1048576?`${Math.round(n/1024)} KB`:`${(n/1048576).toFixed(1)} MB`;
 function sync(){frame.dataset.format=byId("format").value;byId("video-footer").className="video-footer "+byId("watermark").value;}
-function switchMode(on){frame.hidden=!on;canvas.hidden=on;imageDownload.hidden=on;imageShare.hidden=on;exportBtn.hidden=!on;hint.textContent=on?"Vídeo com identidade visual CDE Imports. Exportação em MP4 para Instagram, com marca CDE Imports. Confira o áudio e a imagem antes de publicar.":"O site insere o logo e domínio no topo e uma marca d’água discreta no rodapé.";sync();}
+function switchMode(on){frame.hidden=!on;canvas.hidden=on;imageDownload.hidden=on;imageShare.hidden=on;exportBtn.hidden=!on;hint.textContent=on?"Vídeo com identidade visual CDE Imports. A versão editada é enviada diretamente às redes selecionadas. Confira o áudio e a imagem antes de publicar.":"O site insere o logo e domínio no topo e uma marca d’água discreta no rodapé.";sync();}
 function release(){video.pause();video.removeAttribute("src");video.load();if(videoURL)URL.revokeObjectURL(videoURL);videoURL=null;}
 async function loadVideo(f,recovered=false){
  if(exporting)return status("Conclua a exportação antes de trocar de vídeo.",true);
@@ -30,8 +30,11 @@ async function loadVideo(f,recovered=false){
    if(video.readyState>=1)success();
   });
   loaded=true;
-  status(`🎬 ${f.name} · ${prettySize(f.size)} · ${Math.ceil(video.duration||0)}s · ${recovered?"recuperado da campanha":"pronto para criar campanha"}`);
-  message("Vídeo carregado. Confira a prévia e agende sua campanha.");
+  if(byId("video-trim-start"))byId("video-trim-start").value=0;
+  if(byId("video-trim-end"))byId("video-trim-end").value=Number(video.duration.toFixed(2));
+  window.dispatchEvent(new Event("cde:video-loaded"));
+  status(`🎬 ${f.name} · ${prettySize(f.size)} · ${Math.ceil(video.duration||0)}s · ${recovered?"recuperado da campanha":"pronto para editar e publicar"}`);
+  message("Vídeo carregado. Edite, selecione os destinos e publique diretamente.");
  }catch(e){status(e.message,true);release();selected=null;loaded=false;switchMode(false);}
 }
 input.addEventListener("change",()=>loadVideo(input.files?.[0]));
@@ -71,6 +74,7 @@ async function openSaved(campaignId){
  }catch(e){message(`Falha ao recuperar vídeo: ${e.message}`,true);}
 }
 function drawCover(ctx,x,y,w,h){
+ if(byId("video-fit")?.value==="contain"){const ratio=Math.min(w/video.videoWidth,h/video.videoHeight),dw=video.videoWidth*ratio,dh=video.videoHeight*ratio;ctx.drawImage(video,x+(w-dw)/2,y+(h-dh)/2,dw,dh);return;}
  const mw=video.videoWidth,mh=video.videoHeight;if(!mw||!mh)return;
  const scale=Math.max(w/mw,h/mh),sw=w/scale,sh=h/scale;
  ctx.drawImage(video,(mw-sw)/2,(mh-sh)/2,sw,sh,x,y,w,h);
@@ -105,7 +109,7 @@ async function soundTrack(){
  if(audioCtx.state==='suspended')await audioCtx.resume();
  return audioTarget.stream.getAudioTracks()[0]||null;
 }
-async function exportVideo(){
+async function exportVideo({downloadFile=true,format=null}={}){
  if(!selected||!loaded)return status("Selecione primeiro um vídeo válido.",true);
  if(exporting)return;
  if(!window.CDEMP4||typeof MediaRecorder==="undefined"||!HTMLCanvasElement.prototype.captureStream)
@@ -115,10 +119,12 @@ async function exportVideo(){
  let mime=window.CDEMP4.chooseRecorderMime(MediaRecorder);
  if(!mime)return status("O navegador não oferece gravação de vídeo compatível. Atualize o Chrome ou Edge.",true);
  exporting=true;exportBtn.disabled=true;exportBtn.textContent="Preparando MP4...";
- const fmt=byId("format").value,[w,h]=fmt==="square"?[720,720]:fmt==="pin"?[720,1080]:[720,1280];
+ const fmt=format||byId("format").value,[w,h]=fmt==="landscape"?[1280,720]:fmt==="square"?[720,720]:fmt==="pin"?[720,1080]:[720,1280];
+ const start=Number(byId("video-trim-start")?.value||0),end=Number(byId("video-trim-end")?.value||video.duration);
+ if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end>video.duration+.05){exporting=false;exportBtn.disabled=false;throw Error("Informe um corte válido dentro da duração do vídeo.");}
  const stage=document.createElement("canvas");stage.width=w;stage.height=h;
  const ctx=stage.getContext("2d");
- let raf=0,recorder=null,stream=null,recordError=null;
+ let raf=0,recorder=null,stream=null,recordError=null,cancelPlayback=()=>{};
  const draw=()=>{
   ctx.fillStyle="#071941";ctx.fillRect(0,0,w,h);
   const top=Math.round(h*.14),bottom=Math.round(h*.11);
@@ -127,7 +133,8 @@ async function exportVideo(){
  };
  try{
   if(!ctx)throw Error("Não foi possível iniciar o editor MP4.");
-  video.pause();video.currentTime=0;
+  video.pause();video.currentTime=start;
+  if(video.seeking)await new Promise(resolve=>video.addEventListener("seeked",resolve,{once:true}));
   await new Promise((resolve,reject)=>{
    if(video.readyState>=2){resolve();return;}
    const timeout=setTimeout(()=>reject(Error("O vídeo demorou para carregar.")),12000);
@@ -153,10 +160,15 @@ async function exportVideo(){
    };
   });
   const ended=new Promise((resolve,reject)=>{
-   const timeout=setTimeout(()=>reject(Error("Tempo esgotado durante a gravação.")),video.duration*1000+30000);
-   video.addEventListener("ended",()=>{clearTimeout(timeout);resolve();},{once:true});
-   video.addEventListener("error",()=>{clearTimeout(timeout);reject(Error("Falha ao reproduzir o vídeo original."));},{once:true});
+   const clean=()=>{clearTimeout(timeout);video.removeEventListener('timeupdate',tick);video.removeEventListener('ended',done);video.removeEventListener('error',fail);};
+   cancelPlayback=clean;
+   const done=()=>{clean();video.pause();resolve();};
+   const fail=()=>{clean();reject(Error('Falha ao reproduzir o vídeo original.'));};
+   const tick=()=>{if(video.currentTime>=end)done();};
+   const timeout=setTimeout(()=>{clean();reject(Error('Tempo esgotado durante a gravação.'));},(end-start)*1000+30000);
+   video.addEventListener('timeupdate',tick);video.addEventListener('ended',done);video.addEventListener('error',fail);
   });
+  ended.catch(()=>{});finished.catch(()=>{});
   draw();
   exportBtn.textContent="Gravando quadros...";
   recorder.start(1000);
@@ -172,6 +184,10 @@ async function exportVideo(){
   if(!mp4.size)throw Error("O arquivo MP4 final ficou vazio.");
   const verified=await window.CDEMP4.examineMP4(mp4);
   if(!verified.valid||!verified.fastStart)throw Error("O MP4 não passou na verificação para publicação.");
+  if(!downloadFile){
+   message('Versão editada pronta para envio direto.');
+   return {blob:new Blob([mp4],{type:"video/mp4"}),width:w,height:h,duration:end-start};
+  }
   download(mp4,"CDE-Imports-"+fmt+"-instagram.mp4");
   status("Vídeo exportado: MP4 · "+prettySize(mp4.size)+" · pronto para importar em Reels.");
   message("MP4 com marca CDE Imports exportado! Revise o áudio e envie o arquivo na Central do Instagram → Reels.");
@@ -179,15 +195,24 @@ async function exportVideo(){
   message("Falha ao exportar MP4: "+err.message+". Tente um vídeo curto ou use o MP4 original na Central do Instagram.",true);
   status("Não foi gerado WebM: o editor exporta somente MP4 válido para o Instagram.",true);
   if(recorder&&recorder.state!=="inactive")try{recorder.stop();}catch{}
+  if(!downloadFile)throw err;
  }finally{
-  cancelAnimationFrame(raf);video.pause();
+  cancelPlayback();cancelAnimationFrame(raf);video.pause();
   try{video.currentTime=0;}catch{}
   for(const t of stream?.getVideoTracks()||[])t.stop();
   exporting=false;exportBtn.disabled=false;exportBtn.textContent="Exportar vídeo com marca (MP4)";
  }
 }
 
-exportBtn.addEventListener("click",exportVideo);
-window.CDEVideo={metadata,onCampaignSaved,openSaved};
+exportBtn.addEventListener("click",()=>exportVideo());
+window.CDEVideo={metadata,onCampaignSaved,openSaved,
+ loadVideo,
+ renderForPublish:async format=>{
+  const result=await exportVideo({downloadFile:false,format});
+  if(!result?.blob)throw Error('Não foi possível preparar o vídeo editado. Use vídeo de até 4 minutos no Chrome ou Edge.');
+  return result;
+ },
+ sourceInfo:()=>selected&&loaded?{duration:video.duration,width:video.videoWidth,height:video.videoHeight}:null
+};
 switchMode(false);
 })();

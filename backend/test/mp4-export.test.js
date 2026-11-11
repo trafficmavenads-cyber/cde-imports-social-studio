@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {chooseRecorderMime,examineMP4,convertToMP4}=require('../../site/mp4-export.js');
+const {chooseRecorderMime,examineMP4,inspectCodecs,convertToMP4}=require('../../site/mp4-export.js');
 function box(name,payload=Buffer.alloc(4)){
  const buf=Buffer.alloc(payload.length+8);
  buf.writeUInt32BE(buf.length,0);
@@ -56,4 +56,27 @@ test('Quando só há WebM, a conversão gera H.264/AAC e MP4 com faststart',asyn
   if(ffmpegBefore===undefined)delete globalThis.FFmpegWASM;
   else globalThis.FFmpegWASM=ffmpegBefore;
  }
+});
+
+function codecMovie(audio){
+ const entries=Buffer.concat([box('avc1'),box(audio)]),header=Buffer.alloc(8);header.writeUInt32BE(2,4);
+ return Buffer.concat([ftyp,box('moov',box('trak',box('mdia',box('minf',box('stbl',box('stsd',Buffer.concat([header,entries]))))))),mdat]);
+}
+test('MP4 nativo com áudio Opus deve converter para AAC antes de publicar na Meta',async()=>{
+ const input=new Blob([codecMovie('Opus')],{type:'video/mp4'});
+ assert.deepEqual(await inspectCodecs(input),['avc1','Opus']);
+ const beforeFetch=globalThis.fetch,beforeFFmpeg=globalThis.FFmpegWASM,commands=[];
+ class FakeFFmpeg{
+  async load(){} async writeFile(name){assert.equal(name,'cde-source.mp4');}
+  async exec(args){commands.push(args);return 0;}
+  async readFile(){return codecMovie('mp4a');} terminate(){}
+ }
+ globalThis.fetch=async()=>new Response(new Uint8Array([1,2,3]));
+ globalThis.FFmpegWASM={FFmpeg:FakeFFmpeg};
+ try{
+  const output=await convertToMP4(input,{native:true});
+  assert.notStrictEqual(output,input);
+  assert.deepEqual(await inspectCodecs(output),['avc1','mp4a']);
+  const args=commands[0];assert.equal(args[args.indexOf('-c:a')+1],'aac');assert.equal(args[args.indexOf('-c:v')+1],'copy');
+ }finally{globalThis.fetch=beforeFetch;if(beforeFFmpeg===undefined)delete globalThis.FFmpegWASM;else globalThis.FFmpegWASM=beforeFFmpeg;}
 });
