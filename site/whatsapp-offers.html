@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CDE Imports | Ofertas para Grupo VIP</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,Arial;background:#07142c;color:#f5f8ff}*{box-sizing:border-box}body{margin:0;padding:24px}main{max-width:860px;margin:auto}.head{display:flex;align-items:center;justify-content:space-between;gap:16px}a{color:#9fc9ff}.logo{height:42px}h1{font-size:clamp(24px,5vw,36px);margin-bottom:6px}p{line-height:1.5;color:#bdd0eb}.card{background:#10254a;border:1px solid #2d4872;border-radius:18px;padding:22px;margin:18px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:600px){.grid{grid-template-columns:1fr}}label{display:block;font-weight:650;margin-top:13px}input,textarea{width:100%;border:1px solid #48638a;border-radius:10px;padding:12px;color:#fff;background:#07172f;font:inherit;margin-top:6px}textarea{min-height:210px;resize:vertical}button{padding:12px 18px;border:0;border-radius:10px;background:#f6c743;color:#17233b;font-weight:750;cursor:pointer;margin:9px 9px 0 0}button.secondary{background:#24497f;color:white}.note{border-left:4px solid #f6c743;padding:13px;background:#2c2a27;color:#ffdf8d;border-radius:6px}.tag{background:#17395c;padding:5px 9px;border-radius:999px;color:#9fd4ff;font-size:12px}.small{font-size:13px}
+</style></head><body><main>
+<header class="head"><a href="index.html">← Voltar ao Social Studio</a><span class="tag">MÓDULO PREPARATÓRIO · SEM ENVIO</span></header>
+<h1>📣 Ofertas para o Grupo VIP</h1><p>Monte ofertas com preço, cupom e checkout. O envio automático ainda está BLOQUEADO e não há sessão WhatsApp conectada.</p>
+<div class="note">⚠️ Integração WhatsApp Web não oficial: pode causar restrições na conta. Esta página não autentica, não acessa grupos e não envia mensagens.</div>
+<section class="card">
+<h2>Montar oferta</h2>
+<div class="grid"><label>Nome do produto<input id="name" maxlength="140" placeholder="Ex.: Perfume árabe 100ml"></label><label>Preço (R$)<input id="price" type="number" min="0" step=".01" placeholder="199.90"></label></div>
+<div class="grid"><label>Preço anterior opcional (R$)<input id="oldprice" type="number" min="0" step=".01" placeholder="249.90"></label><label>Cupom de desconto<input id="coupon" maxlength="60" placeholder="CDEVIP"></label></div>
+<label>Link do checkout<input id="url" type="url" maxlength="2000" placeholder="https://cdeimports.site/products/..."></label>
+<label>URL da imagem do produto (somente referência; ainda não é enviada)<input id="image" type="url" maxlength="2000" placeholder="https://cdn.../produto.jpg"></label>
+<button id="generate" type="button">Gerar legenda de venda</button>
+<label>Prévia da mensagem para o grupo<textarea id="message" maxlength="4000" placeholder="Sua oferta aparece aqui..."></textarea></label>
+<button class="secondary" id="copy" type="button">Copiar mensagem</button><button class="secondary" id="json" type="button">Baixar rascunho JSON</button>
+<p id="feedback" role="status" class="small">Nenhuma mensagem foi enviada.</p>
+</section><section class="card"><h2>Integração técnica</h2>
+<p>O código do serviço independente está em <a href="https://github.com/trafficmavenads-cyber/cde-imports-social-studio/tree/main/whatsapp-worker">whatsapp-worker/</a>. Por segurança, conexão e envio estão desativados por padrão. O link de convite do grupo não revela o ID interno necessário para permitir envios.</p>
+<p class="small">Próximas etapas: configurar um computador privado persistente, autorizar a sessão, descobrir o ID real do grupo, testar sem envio e só depois habilitar a publicação. Shopify automática e imagens são integrações futuras.</p></section>
+</main><script>
+const $=id=>document.getElementById(id);
+const money=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const get=()=>({name:$('name').value.trim(),price:$('price').value,oldprice:$('oldprice').value,coupon:$('coupon').value.trim(),checkout:$('url').value.trim(),image:$('image').value.trim(),message:$('message').value});
+$('generate').onclick=()=>{
+const v=get();if(!v.name||!v.price||!v.checkout){$('feedback').textContent='Informe produto, preço e checkout.';return;}
+try{const u=new URL(v.checkout);if(!['https:','http:'].includes(u.protocol))throw Error();}catch{$('feedback').textContent='Informe uma URL válida de checkout.';return;}
+$('message').value='🚨🔥 OFERTA CDE IMPORTS 🇵🇾\n\n🛍️ '+v.name+'\n'+(v.oldprice?'❌ De: '+money(v.oldprice)+'\n':'')+'✅ POR APENAS: *'+money(v.price)+'*\n'+(v.coupon?'🎟️ CUPOM: *'+v.coupon+'*\n':'')+'\n🛒 GARANTA O SEU AGORA:\n'+v.checkout+'\n\n💙❤️ CDE Imports — seus importados favoritos!\n⚡ Confira a disponibilidade no checkout.';
+$('feedback').textContent='Legenda gerada localmente. Nenhuma mensagem enviada.';
+};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('message').value);$('feedback').textContent='Mensagem copiada.';}catch{$('feedback').textContent='Não foi possível copiar automaticamente.';}};
+$('json').onclick=()=>{const v=get();if(!v.message.trim()){ $('feedback').textContent='Gere uma mensagem antes de exportar.';return;}
+const blob=new Blob([JSON.stringify({type:'cde-whatsapp-draft',createdAt:new Date().toISOString(),...v},null,2)],{type:'application/json'});
+const a=document.createElement('a');const url=URL.createObjectURL(blob);a.href=url;a.download='cde-oferta-rascunho.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+$('feedback').textContent='Rascunho exportado localmente; nenhum envio ocorreu.';};
+</script></body></html>
